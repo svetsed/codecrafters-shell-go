@@ -19,6 +19,10 @@ func main() {
 		cmd = strings.TrimSuffix(cmd, "\r")
 		cmd = strings.TrimSuffix(cmd, "\n")
 
-		fmt.Printf("%s: command not found\n", cmd)
+		if cmd == "exit" {
+			return
+		} else {
+			fmt.Printf("%s: command not found\n", cmd)
+		}
 	}
 }
