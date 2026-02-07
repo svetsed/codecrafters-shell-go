@@ -10,18 +10,28 @@ import (
 func main() {
 	for {
 		fmt.Print("$ ")
-		cmd, err := bufio.NewReader(os.Stdin).ReadString('\n')
+		input, err := bufio.NewReader(os.Stdin).ReadString('\n')
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error reading input: %v\n", err)
 			os.Exit(1)
 		}
 
-		cmd = strings.TrimSuffix(cmd, "\r")
-		cmd = strings.TrimSuffix(cmd, "\n")
+		input = strings.TrimSpace(input)
+		args := strings.Fields(input)
 
-		if cmd == "exit" {
-			return
-		} else {
+		if len(args) == 0 {
+			continue
+		}
+
+		cmd := args[0]
+		argsStr := strings.Join(args[1:], " ")
+
+		switch cmd {
+		case "exit":
+			os.Exit(0)
+		case "echo":
+			fmt.Printf("%s\n", argsStr)
+		default:
 			fmt.Printf("%s: command not found\n", cmd)
 		}
 	}
