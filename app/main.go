@@ -86,6 +86,12 @@ func main() {
 		argsStr := strings.Join(args[1:], " ")
 
 		switch cmd {
+		case "pwd":
+			if curDir, err := os.Getwd(); err == nil {
+				fmt.Printf("%s\n", curDir)
+			} else {
+				fmt.Fprintln(os.Stderr, err)
+			}
 		case "exit":
 			os.Exit(0)
 		case "echo":
