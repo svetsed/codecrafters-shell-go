@@ -101,7 +101,7 @@ func main() {
 			if path == "" {
 				fmt.Printf("%s: command not found\n", cmd)
 			} else {
-				cmdForRun := exec.Command(path, argsStr)
+				cmdForRun := exec.Command(path, args[1:]...)
 				cmdForRun.Stdout = os.Stdout
 				cmdForRun.Stderr = os.Stderr
 				if err = cmdForRun.Run(); err != nil {
