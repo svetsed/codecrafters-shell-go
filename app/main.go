@@ -4,8 +4,60 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 )
+
+func PrintLookPath(cmd, path string) {
+	if path == "" {
+		fmt.Printf("%s: not found\n", cmd)
+	} else {
+		fmt.Printf("%s is %s\n", cmd, path)
+	}
+}
+
+func LookPath(filename string) string {
+	pathEnv := os.Getenv("PATH")
+	if pathEnv == "" {
+		return ""
+	}
+
+	listPath := strings.Split(pathEnv, string(os.PathListSeparator))
+
+	for _, dir := range listPath {
+		path := filepath.Join(dir, filename)
+		info, err := os.Stat(path)
+		if err != nil  {
+			continue
+		} 
+
+		if !info.IsDir() {
+			if isExec := isExecutable(path, info); isExec {
+				return path
+			}
+		}
+	}
+
+	return ""
+}
+
+func isExecutable(path string, info os.FileInfo) bool {
+	if runtime.GOOS == "windows" {
+		ext := filepath.Ext(path)
+		winExecExts := []string{".exe", ".com", ".bat", ".cmd"}
+		for _, e := range winExecExts {
+			if strings.EqualFold(ext, e) {
+				return true
+			}
+		}
+
+		return false
+	} else {
+		mode := info.Mode()
+		return mode&0111 != 0
+	}
+}
 
 func main() {
 	existCmd := map[string]bool{
@@ -30,7 +82,6 @@ func main() {
 		}
 
 		cmd := args[0]
-		
 		argsStr := strings.Join(args[1:], " ")
 
 		switch cmd {
@@ -42,7 +93,7 @@ func main() {
 			if _, ok := existCmd[argsStr]; ok {
 				fmt.Printf("%s is a shell builtin\n", argsStr)
 			} else {
-				fmt.Printf("%s: not found\n", argsStr)
+				PrintLookPath(argsStr, LookPath(argsStr))
 			}
 		default:
 			fmt.Printf("%s: command not found\n", cmd)
