@@ -65,6 +65,7 @@ func main() {
 		"exit": true,
 		"type": true,
 		"echo": true,
+		"pwd":  true,
 	}
 
 	for {
