@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -96,7 +97,18 @@ func main() {
 				PrintLookPath(argsStr, LookPath(argsStr))
 			}
 		default:
-			fmt.Printf("%s: command not found\n", cmd)
+			path := LookPath(cmd)
+			if path == "" {
+				fmt.Printf("%s: command not found\n", cmd)
+			} else {
+				cmdForRun := exec.Command(path, argsStr)
+				cmdForRun.Stdout = os.Stdout
+				cmdForRun.Stderr = os.Stderr
+				if err = cmdForRun.Run(); err != nil {
+					fmt.Fprintln(os.Stderr, err)
+				}
+			}
+
 		}
 	}
 }
