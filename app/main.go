@@ -158,6 +158,7 @@ func EchoCmd(input string) string {
 		if ch == '\'' {
 			found = true
 			count++
+			prevCh = ch
 			continue
 		}
 
@@ -166,17 +167,19 @@ func EchoCmd(input string) string {
 		}
 
 		if found {
+			prevCh = ch
 			result = append(result, ch)
 		} else {
 			if ch == '\n' || ch == '\r' || ch == '\t' {
+				prevCh = ch
 				continue
-			} else if ch == prevCh && prevCh == ' ' || prevCh == '\\' {
+			} else if ch == prevCh && (prevCh == ' ' || prevCh == '\\') {
+				prevCh = ch
 				continue
 			} else {
+				prevCh = ch
 				result = append(result, ch)
 			}
-			
-			prevCh = ch
 		}
 
 	}
