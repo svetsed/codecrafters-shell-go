@@ -66,6 +66,7 @@ func main() {
 		"type": true,
 		"echo": true,
 		"pwd":  true,
+		"cd": 	true,
 	}
 
 	for {
@@ -87,6 +88,14 @@ func main() {
 		argsStr := strings.Join(args[1:], " ")
 
 		switch cmd {
+		case "cd":
+			if _, err = os.Stat(argsStr); err != nil {
+				fmt.Printf("%s: %s: No such file or directory\n", cmd, argsStr)
+			} else {
+				if err = os.Chdir(argsStr); err != nil {
+					fmt.Printf("%s: %s: No such file or directory\n", cmd, argsStr)
+				}
+			}
 		case "pwd":
 			if curDir, err := os.Getwd(); err == nil {
 				fmt.Printf("%s\n", curDir)
