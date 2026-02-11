@@ -73,8 +73,6 @@ func main() {
 		"echo": true,
 		"pwd":  true,
 		"cd": 	true,
-		"cat":  true,
-
 	}
 
 	for {
