@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"unicode/utf8"
 )
 
 func PrintLookPath(cmd, path string) {
@@ -67,18 +68,18 @@ func main() {
 		"echo": true,
 		"pwd":  true,
 		"cd": 	true,
+
 	}
 
 	for {
 		fmt.Print("$ ")
-		input, err := bufio.NewReader(os.Stdin).ReadString('\n')
+		inputRaw, err := bufio.NewReader(os.Stdin).ReadString('\n')
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error reading input: %v\n", err)
 			os.Exit(1)
 		}
 
-		input = strings.TrimSpace(input)
-		args := strings.Fields(input)
+		args := strings.Fields(strings.TrimSpace(inputRaw))
 
 		if len(args) == 0 {
 			continue
@@ -86,7 +87,6 @@ func main() {
 
 		cmd := args[0]
 		argsStr := strings.Join(args[1:], " ")
-
 		switch cmd {
 		case "cd":
 			tmpArgStr := argsStr
@@ -114,7 +114,11 @@ func main() {
 		case "exit":
 			os.Exit(0)
 		case "echo":
-			fmt.Printf("%s\n", argsStr)
+				if !strings.ContainsAny(inputRaw, "'") {
+					fmt.Printf("%s\n", argsStr)
+				} else {
+					fmt.Printf("%s\n", EchoCmd(inputRaw))
+				}
 		case "type":
 			if _, ok := existCmd[argsStr]; ok {
 				fmt.Printf("%s is a shell builtin\n", argsStr)
@@ -136,4 +140,46 @@ func main() {
 
 		}
 	}
+}
+
+
+func EchoCmd(input string) string {
+	input, ok := strings.CutPrefix(input, "echo ")
+	if !ok {
+		return ""
+	}
+
+	found := false
+	count := 0
+	var prevCh rune
+	result := make([]rune, 0, utf8.RuneCountInString(input))
+
+	for _, ch := range input {
+		if ch == '\'' {
+			found = true
+			count++
+			continue
+		}
+
+		if count % 2 == 0 {
+			found = false
+		}
+
+		if found {
+			result = append(result, ch)
+		} else {
+			if ch == '\n' || ch == '\r' || ch == '\t' {
+				continue
+			} else if ch == prevCh && prevCh == ' ' || prevCh == '\\' {
+				continue
+			} else {
+				result = append(result, ch)
+			}
+			
+			prevCh = ch
+		}
+
+	}
+
+	return string(result)
 }
