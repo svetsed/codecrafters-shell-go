@@ -123,7 +123,7 @@ func main() {
 					fmt.Printf("%s\n", argsStr)
 				} else {
 					input := ParseArgs(cmd, inputRaw)
-					fmt.Printf("%v\n", strings.Join(input, " "))
+					fmt.Printf("%s\n", strings.Join(input, " "))
 				}
 		case "type":
 			if _, ok := existCmd[argsStr]; ok {
