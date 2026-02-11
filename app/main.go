@@ -11,9 +11,10 @@ import (
 )
 
 type parser struct {
-    args       []string
-    current    strings.Builder
-    inQuotes   bool
+    args       	  []string
+    current    	  strings.Builder
+    inQuotes   	  bool
+	whatQuoteType rune
 }
 
 func PrintLookPath(cmd, path string) {
@@ -118,7 +119,7 @@ func main() {
 		case "exit":
 			os.Exit(0)
 		case "echo":
-				if !strings.ContainsAny(inputRaw, "'") {
+				if !strings.ContainsAny(inputRaw, "'") || !strings.ContainsAny(inputRaw, "\"") {
 					fmt.Printf("%s\n", argsStr)
 				} else {
 					input := ParseArgs(cmd, inputRaw)
@@ -180,11 +181,12 @@ func ParseArgs(cmd string, input string) []string {
 				}
 			} else if ch == '\'' || ch == '"' {
 					prsr.inQuotes = true
+					prsr.whatQuoteType = ch
 			} else {
 				prsr.current.WriteRune(ch)
 			}
 		} else {
-			if ch == '\'' || ch == '"' {
+			if prsr.whatQuoteType == ch {
 				prsr.inQuotes = false
 			} else {
 				prsr.current.WriteRune(ch)
