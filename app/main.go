@@ -119,7 +119,7 @@ func main() {
 		case "exit":
 			os.Exit(0)
 		case "echo":
-				if !strings.ContainsAny(inputRaw, "'") || !strings.ContainsAny(inputRaw, "\"") {
+				if !strings.ContainsAny(inputRaw, "'") && !strings.ContainsAny(inputRaw, "\"") {
 					fmt.Printf("%s\n", argsStr)
 				} else {
 					input := ParseArgs(cmd, inputRaw)
@@ -197,6 +197,7 @@ func ParseArgs(cmd string, input string) []string {
 		prsr.args = append(prsr.args, prsr.current.String())
 		prsr.current.Reset()
 	}
+
 
 	return prsr.args
 }
