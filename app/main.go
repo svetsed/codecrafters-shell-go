@@ -8,8 +8,13 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"unicode/utf8"
 )
+
+type parser struct {
+    args       []string
+    current    strings.Builder
+    inQuotes   bool
+}
 
 func PrintLookPath(cmd, path string) {
 	if path == "" {
@@ -118,7 +123,8 @@ func main() {
 				if !strings.ContainsAny(inputRaw, "'") {
 					fmt.Printf("%s\n", argsStr)
 				} else {
-					fmt.Printf("%s\n", EchoCmd(inputRaw))
+					input := ParseArgs(cmd, inputRaw)
+					fmt.Printf("%v\n", strings.Join(input, " "))
 				}
 		case "type":
 			if _, ok := existCmd[argsStr]; ok {
@@ -127,7 +133,12 @@ func main() {
 				PrintLookPath(argsStr, LookPath(argsStr))
 			}
 		case "cat":
-			cmdForRun := exec.Command("cat", args[1:]...)
+			inputSlise := ParseArgs(cmd, inputRaw)
+			if inputSlise == nil {
+				fmt.Printf("%s: command not found\n", cmd)
+			}
+
+			cmdForRun := exec.Command("cat", inputSlise...)
 			cmdForRun.Stdout = os.Stdout
 			cmdForRun.Stderr = os.Stderr
 			if err = cmdForRun.Run(); err != nil {
@@ -150,47 +161,42 @@ func main() {
 	}
 }
 
-
-func EchoCmd(input string) string {
-	input, ok := strings.CutPrefix(input, "echo ")
+func ParseArgs(cmd string, input string) []string {
+	input, ok := strings.CutPrefix(input, cmd+" ")
 	if !ok {
-		return ""
+		return nil
 	}
 
-	found := false
-	count := 0
-	var prevCh rune
-	result := make([]rune, 0, utf8.RuneCountInString(input))
+	prsr := parser{
+		args: []string{},
+		current: strings.Builder{},
+		inQuotes: false,
+	}
 
 	for _, ch := range input {
-		if ch == '\'' {
-			found = true
-			count++
-			prevCh = ch
-			continue
-		}
-
-		if count % 2 == 0 {
-			found = false
-		}
-
-		if found {
-			prevCh = ch
-			result = append(result, ch)
-		} else {
-			if ch == '\n' || ch == '\r' || ch == '\t' {
-				prevCh = ch
-				continue
-			} else if ch == prevCh && (prevCh == ' ' || prevCh == '\\') {
-				prevCh = ch
-				continue
+		if !prsr.inQuotes {
+			if ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' {
+				if prsr.current.Len() > 0 {
+					prsr.args = append(prsr.args, prsr.current.String())
+					prsr.current.Reset()
+				}
+			} else if ch == '\'' {
+					prsr.inQuotes = true
 			} else {
-				prevCh = ch
-				result = append(result, ch)
+				prsr.current.WriteRune(ch)
+			}
+		} else {
+			if ch == '\'' {
+				prsr.inQuotes = false
+			} else {
+				prsr.current.WriteRune(ch)
 			}
 		}
-
+	}
+	if prsr.current.Len() > 0 {
+		prsr.args = append(prsr.args, prsr.current.String())
+		prsr.current.Reset()
 	}
 
-	return string(result)
+	return prsr.args
 }
