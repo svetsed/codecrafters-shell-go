@@ -89,10 +89,19 @@ func main() {
 
 		switch cmd {
 		case "cd":
-			if _, err = os.Stat(argsStr); err != nil {
+			tmpArgStr := argsStr
+			if strings.HasPrefix(tmpArgStr, "~") {
+				homeDir, err := os.UserHomeDir()
+				if err != nil {
+					fmt.Printf("%s: %s: No such file or directory\n", cmd, argsStr)
+				}
+				tmpArgStr = strings.Replace(tmpArgStr, "~", homeDir, 1)
+			}
+
+			if _, err = os.Stat(tmpArgStr); err != nil {
 				fmt.Printf("%s: %s: No such file or directory\n", cmd, argsStr)
 			} else {
-				if err = os.Chdir(argsStr); err != nil {
+				if err = os.Chdir(tmpArgStr); err != nil {
 					fmt.Printf("%s: %s: No such file or directory\n", cmd, argsStr)
 				}
 			}
