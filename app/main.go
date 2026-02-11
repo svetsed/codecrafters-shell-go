@@ -178,13 +178,13 @@ func ParseArgs(cmd string, input string) []string {
 					prsr.args = append(prsr.args, prsr.current.String())
 					prsr.current.Reset()
 				}
-			} else if ch == '\'' {
+			} else if ch == '\'' || ch == '"' {
 					prsr.inQuotes = true
 			} else {
 				prsr.current.WriteRune(ch)
 			}
 		} else {
-			if ch == '\'' {
+			if ch == '\'' || ch == '"' {
 				prsr.inQuotes = false
 			} else {
 				prsr.current.WriteRune(ch)
