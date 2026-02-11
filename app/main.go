@@ -68,6 +68,7 @@ func main() {
 		"echo": true,
 		"pwd":  true,
 		"cd": 	true,
+		"cat":  true,
 
 	}
 
@@ -124,6 +125,13 @@ func main() {
 				fmt.Printf("%s is a shell builtin\n", argsStr)
 			} else {
 				PrintLookPath(argsStr, LookPath(argsStr))
+			}
+		case "cat":
+			cmdForRun := exec.Command("cat", args[1:]...)
+			cmdForRun.Stdout = os.Stdout
+			cmdForRun.Stderr = os.Stderr
+			if err = cmdForRun.Run(); err != nil {
+				fmt.Fprintln(os.Stderr, err)
 			}
 		default:
 			path := LookPath(cmd)
