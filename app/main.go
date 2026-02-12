@@ -206,7 +206,7 @@ func ParseArgs(cmd string, input string) []string {
 				if ch == '\\' || ch == '"' {
 					prsr.current.WriteRune(ch)
 				} else {
-					// prsr.current.WriteRune('\\')
+					prsr.current.WriteRune('\\')
 					prsr.current.WriteRune(ch)
 				}
 				prsr.backslashSeen = false
