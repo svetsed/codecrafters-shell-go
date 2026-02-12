@@ -10,12 +10,19 @@ import (
 	"strings"
 )
 
+type state int
+
+const (
+	stateOutside state = iota
+	stateSingleQuote
+	stateDoubleQuote
+)
+
 type parser struct {
-    args       	  []string
-    current    	  strings.Builder
-    inQuotes   	  bool
-	whatQuoteType rune
-	prevChar	  rune
+    args    	  []string
+    current 	  strings.Builder
+	backslashSeen bool
+	state   	  state
 }
 
 func PrintLookPath(cmd, path string) {
@@ -165,33 +172,54 @@ func ParseArgs(cmd string, input string) []string {
 	prsr := parser{
 		args: []string{},
 		current: strings.Builder{},
-		inQuotes: false,
+		backslashSeen: false,
+		state: stateOutside,
 	}
 
 	for _, ch := range input {
-		if !prsr.inQuotes {
-			if prsr.prevChar == '\\' {
+		if prsr.state == stateOutside {
+			if prsr.backslashSeen {
 				prsr.current.WriteRune(ch)
+				prsr.backslashSeen = false
+			} else if ch == '\\' {
+				prsr.backslashSeen = true
 			} else if ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' {
 				if prsr.current.Len() > 0 {
 					prsr.args = append(prsr.args, prsr.current.String())
 					prsr.current.Reset()
 				}
-			} else if ch == '\'' || ch == '"' {
-					prsr.inQuotes = true
-					prsr.whatQuoteType = ch
+			} else if ch == '\'' {
+				prsr.state = stateSingleQuote
+			} else if ch == '"' {
+				prsr.state = stateDoubleQuote
 			} else if ch != '\\' {
 				prsr.current.WriteRune(ch)
 			}
-		} else {
-			if prsr.whatQuoteType == ch {
-				prsr.inQuotes = false
+		} else if prsr.state == stateSingleQuote {
+			if ch == '\''{
+				prsr.state = stateOutside
 			} else {
 				prsr.current.WriteRune(ch)
 			}
+		} else if prsr.state == stateDoubleQuote {
+			if prsr.backslashSeen {
+				if ch == '\\' || ch == '"' {
+					prsr.current.WriteRune(ch)
+				} else {
+					// prsr.current.WriteRune('\\')
+					prsr.current.WriteRune(ch)
+				}
+				prsr.backslashSeen = false
+			} else {
+				if ch == '\\' {
+					prsr.backslashSeen = true
+				} else if ch == '"' {
+					prsr.state = stateOutside
+				} else {
+					prsr.current.WriteRune(ch)
+				}
+			}
 		}
-
-		prsr.prevChar = ch
 	}
 
 	if prsr.current.Len() > 0 {
