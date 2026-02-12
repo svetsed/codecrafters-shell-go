@@ -15,6 +15,7 @@ type parser struct {
     current    	  strings.Builder
     inQuotes   	  bool
 	whatQuoteType rune
+	prevChar	  rune
 }
 
 func PrintLookPath(cmd, path string) {
@@ -119,12 +120,8 @@ func main() {
 		case "exit":
 			os.Exit(0)
 		case "echo":
-				if !strings.ContainsAny(inputRaw, "'") && !strings.ContainsAny(inputRaw, "\"") {
-					fmt.Printf("%s\n", argsStr)
-				} else {
-					input := ParseArgs(cmd, inputRaw)
-					fmt.Printf("%s\n", strings.Join(input, " "))
-				}
+			input := ParseArgs(cmd, inputRaw)
+			fmt.Printf("%s\n", strings.Join(input, " "))
 		case "type":
 			if _, ok := existCmd[argsStr]; ok {
 				fmt.Printf("%s is a shell builtin\n", argsStr)
@@ -155,7 +152,6 @@ func main() {
 					fmt.Fprintln(os.Stderr, err)
 				}
 			}
-
 		}
 	}
 }
@@ -174,7 +170,9 @@ func ParseArgs(cmd string, input string) []string {
 
 	for _, ch := range input {
 		if !prsr.inQuotes {
-			if ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' {
+			if prsr.prevChar == '\\' {
+				prsr.current.WriteRune(ch)
+			} else if ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' {
 				if prsr.current.Len() > 0 {
 					prsr.args = append(prsr.args, prsr.current.String())
 					prsr.current.Reset()
@@ -182,7 +180,7 @@ func ParseArgs(cmd string, input string) []string {
 			} else if ch == '\'' || ch == '"' {
 					prsr.inQuotes = true
 					prsr.whatQuoteType = ch
-			} else {
+			} else if ch != '\\' {
 				prsr.current.WriteRune(ch)
 			}
 		} else {
@@ -192,7 +190,10 @@ func ParseArgs(cmd string, input string) []string {
 				prsr.current.WriteRune(ch)
 			}
 		}
+
+		prsr.prevChar = ch
 	}
+
 	if prsr.current.Len() > 0 {
 		prsr.args = append(prsr.args, prsr.current.String())
 		prsr.current.Reset()
