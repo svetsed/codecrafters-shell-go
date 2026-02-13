@@ -92,14 +92,15 @@ func main() {
 			os.Exit(1)
 		}
 
-		args := strings.Fields(strings.TrimSpace(inputRaw))
-
-		if len(args) == 0 {
+		inputSlice, err := ParseInput(inputRaw)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			continue
 		}
 
-		cmd := args[0]
-		argsStr := strings.Join(args[1:], " ")
+		cmd := inputSlice[0]
+		argsStr := strings.Join(inputSlice[1:], " ")
+
 		switch cmd {
 		case "cd":
 			tmpArgStr := argsStr
@@ -127,8 +128,7 @@ func main() {
 		case "exit":
 			os.Exit(0)
 		case "echo":
-			input := ParseArgs(cmd, inputRaw)
-			fmt.Printf("%s\n", strings.Join(input, " "))
+			fmt.Printf("%s\n", argsStr)
 		case "type":
 			if _, ok := existCmd[argsStr]; ok {
 				fmt.Printf("%s is a shell builtin\n", argsStr)
@@ -136,12 +136,7 @@ func main() {
 				PrintLookPath(argsStr, LookPath(argsStr))
 			}
 		case "cat":
-			inputSlise := ParseArgs(cmd, inputRaw)
-			if inputSlise == nil {
-				fmt.Printf("%s: command not found\n", cmd)
-			}
-
-			cmdForRun := exec.Command("cat", inputSlise...)
+			cmdForRun := exec.Command("cat", inputSlice[1:]...)
 			cmdForRun.Stdout = os.Stdout
 			cmdForRun.Stderr = os.Stderr
 			if err = cmdForRun.Run(); err != nil {
@@ -152,7 +147,7 @@ func main() {
 			if path == "" {
 				fmt.Printf("%s: command not found\n", cmd)
 			} else {
-				cmdForRun := exec.Command(cmd, args[1:]...)
+				cmdForRun := exec.Command(cmd, inputSlice[1:]...)
 				cmdForRun.Stdout = os.Stdout
 				cmdForRun.Stderr = os.Stderr
 				if err = cmdForRun.Run(); err != nil {
@@ -163,10 +158,9 @@ func main() {
 	}
 }
 
-func ParseArgs(cmd string, input string) []string {
-	input, ok := strings.CutPrefix(input, cmd+" ")
-	if !ok {
-		return nil
+func ParseInput(input string) ([]string, error) {
+	if input == "" {
+		return nil, fmt.Errorf("empty input")
 	}
 
 	prsr := parser{
@@ -228,5 +222,5 @@ func ParseArgs(cmd string, input string) []string {
 	}
 
 
-	return prsr.args
+	return prsr.args, nil
 }
