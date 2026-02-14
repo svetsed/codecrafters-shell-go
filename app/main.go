@@ -91,38 +91,38 @@ func isExecutable(path string, info os.FileInfo) bool {
 	}
 }
 
-// closing file if have been mistake
-func create_files(filenames []string) ([]*os.File, error) {
-	if len(filenames) == 0 {
-		return nil, fmt.Errorf("no files for creating")
-	}
+// // closing file if have been mistake
+// func create_files(filenames []string) ([]*os.File, error) {
+// 	if len(filenames) == 0 {
+// 		return nil, fmt.Errorf("no files for creating")
+// 	}
 
-	files := []*os.File{}
+// 	files := []*os.File{}
 
-	for _, filename := range filenames {
-		tmp, err := os.Create(filename)
-		if err != nil {
-			_ = close_files(files)
-			return nil, fmt.Errorf("%v\n", err)
-		}
+// 	for _, filename := range filenames {
+// 		tmp, err := os.Create(filename)
+// 		if err != nil {
+// 			_ = close_files(files)
+// 			return nil, fmt.Errorf("%v\n", err)
+// 		}
 
-		files = append(files, tmp)
-	}
+// 		files = append(files, tmp)
+// 	}
 
-	return files, nil
-}
+// 	return files, nil
+// }
 
-func close_files(files []*os.File) error {
-	if files == nil {
-		return fmt.Errorf("no files for closing")
-	}
+// func close_files(files []*os.File) error {
+// 	if files == nil {
+// 		return fmt.Errorf("no files for closing")
+// 	}
 
-	for _, file := range files {
-		_ = file.Close() // check err
-	}
+// 	for _, file := range files {
+// 		_ = file.Close() // check err
+// 	}
 
-	return nil
-}
+// 	return nil
+// }
 
 func main() {
 	for {
@@ -173,7 +173,6 @@ func main() {
 				tmp, err := os.Create(filename)
 				if err != nil {
 					fmt.Fprintf(os.Stderr, "%v\n", err)
-					continue
 				}
 
 				defer tmp.Close()
@@ -195,12 +194,11 @@ func main() {
 			}
 
 			if output != "" {
-				if curCmd.redirectType != ">" && curCmd.redirectType != "1>" {
-					fmt.Fprintf(stdout,"%s\n", output)
-					if err != nil {
-						fmt.Fprintf(stderr, "%v\n", err)
-					}
+				fmt.Fprintf(stdout,"%s\n", output)
+				if err != nil {
+					fmt.Fprintf(stderr, "%v\n", err)
 				}
+
 			}
 		} else {
 			err := ExecOtherCommand(curCmd.cmd, curCmd.args, curCmd.files, curCmd.redirectType)
