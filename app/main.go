@@ -215,7 +215,7 @@ func main() {
 				}
 			}
 		} else {
-			err := ExecOtherCommand(curCmd.cmd, curCmd.args, curCmd.files)
+			err := ExecOtherCommand(curCmd.cmd, curCmd.args, curCmd.files, curCmd.redirectType)
 			if err != nil {
 				var exitErr *exec.ExitError
 				if !errors.As(err, &exitErr) {
@@ -227,14 +227,14 @@ func main() {
 	}
 }
 
-func ExecOtherCommand(cmd string, argsSlice, filesSlice []string) error {
+func ExecOtherCommand(cmd string, argsSlice, filesSlice []string, redirectType string) error {
 	path := LookPath(cmd)
 	if path == "" {
 		return fmt.Errorf("%s: command not found", cmd)
 	}
 
-	var whereWrite *os.File = os.Stdout
-
+	var stdout *os.File = os.Stdout
+	var stderr *os.File = os.Stderr
 
 	for i, filename := range filesSlice {
 		tmp, err := os.Create(filename)
@@ -245,13 +245,17 @@ func ExecOtherCommand(cmd string, argsSlice, filesSlice []string) error {
 		defer tmp.Close()
 
 		if i == len(filesSlice) - 1 {
-			whereWrite = tmp
+			if redirectType == "2>" {
+				stderr = tmp
+			} else  if redirectType == ">" ||  redirectType == "1>" {
+				stdout = tmp
+			} 
 		}
 	}
 
 	cmdForRun := exec.Command(cmd, argsSlice...)
-	cmdForRun.Stdout = whereWrite
-	cmdForRun.Stderr = os.Stderr
+	cmdForRun.Stdout = stdout
+	cmdForRun.Stderr = stderr
 
 	if err := cmdForRun.Run(); err != nil {
 		return fmt.Errorf("%w", err)
