@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -83,22 +84,6 @@ func isExecutable(path string, info os.FileInfo) bool {
 	}
 }
 
-		// возможно надо сделать свой тип в котором будет аргументы, файл куда записывать и было ли перенаправление
-		// и ее уже возвращать
-		// команда
-		// аргументы
-		// было ли перенаправление
-		// файлы куда записывать
-		// ошибки
-		// какой вывод туда записывать
-type Cmd struct {
-	cmd string
-	args []string
-	filename string
-	needRedirect bool
-}
-
-
 func main() {
 	for {
 		fmt.Print("$ ")
@@ -113,17 +98,6 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			continue
 		}
-
-		// получить инпут и  разобрать его на кусочки
-		// получает какую-то основную команду из первого аргумента
-		// если ее нет, то ошибку выдает
-		// если есть, то идет но конца аргументов?
-		// если перенаправление, то создает файл или перезаписывает
-		// каждый аргумент отдает команде и записывает вывод ее, смотрит была ли ошибка?
-		// если ошибка, то выводит в консоль
-		// иначе записывает или перезапизаписывает в файл
-
-		// надо вывести весь вывод в одну функцию, которая будет принимать флаг перенаправлять или нет, куда писать (имя файла) и сообщение
 
 		cmd := inputSlice[0]
 
@@ -161,15 +135,16 @@ func main() {
 					var whereWrite *os.File = os.Stdout
 
 					for i, filename := range filesSlice {
-					tmp, err := os.Create(filename)
-					if err != nil {
-						fmt.Fprintf(os.Stderr, "%v\n", err)
-					}
+						tmp, err := os.Create(filename)
+						if err != nil {
+							fmt.Fprintf(os.Stderr, "%v\n", err)
+						}
 
-					defer tmp.Close()
+						defer tmp.Close()
 
-					if i == len(filesSlice) - 1 {
-						whereWrite = tmp
+						if i == len(filesSlice) - 1 {
+							whereWrite = tmp
+						}
 					}
 
 					_, err = whereWrite.WriteString(output + "\n")
@@ -177,15 +152,16 @@ func main() {
 						fmt.Fprintf(os.Stderr, "%v\n", err)
 					}
 				}
-	}
 			}
 		} else {
 			err := ExecOtherCommand(cmd, argsSlice, filesSlice)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "%v\n", err)
+				var exitErr *exec.ExitError
+				if !errors.As(err, &exitErr) {
+					fmt.Fprintf(os.Stderr, "%v\n", err)
+				}
 			}
 		}
-
 
 	}
 }
@@ -257,13 +233,6 @@ func ExecSpecificCmd(cmd string, argsStr string) (output string, errOutput error
 		} else {
 			output = PrintLookPath(argsStr, LookPath(argsStr))
 		}
-	// case "cat":
-	// 	cmdForRun := exec.Command("cat", inputSlice[1:]...)
-	// 	cmdForRun.Stdout = os.Stdout
-	// 	cmdForRun.Stderr = os.Stderr
-	// 	if err = cmdForRun.Run(); err != nil {
-	// 		fmt.Fprintln(os.Stderr, err)
-	// 	}
 	}
 
 	return output, errOutput
