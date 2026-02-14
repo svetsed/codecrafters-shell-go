@@ -26,6 +26,13 @@ type parser struct {
 	state   	  state
 }
 
+type currentCmd struct {
+	cmd			 string
+	args  		 []string
+	files 		 []string
+	redirectType string
+}
+
 var existCmd = map[string]bool{
 	"exit": true,
 	"type": true,
@@ -84,6 +91,39 @@ func isExecutable(path string, info os.FileInfo) bool {
 	}
 }
 
+// closing file if have been mistake
+func create_files(filenames []string) ([]*os.File, error) {
+	if len(filenames) == 0 {
+		return nil, fmt.Errorf("no files for creating")
+	}
+
+	files := []*os.File{}
+
+	for _, filename := range filenames {
+		tmp, err := os.Create(filename)
+		if err != nil {
+			_ = close_files(files)
+			return nil, fmt.Errorf("%v\n", err)
+		}
+
+		files = append(files, tmp)
+	}
+
+	return files, nil
+}
+
+func close_files(files []*os.File) error {
+	if files == nil {
+		return fmt.Errorf("no files for closing")
+	}
+
+	for _, file := range files {
+		_ = file.Close() // check err
+	}
+
+	return nil
+}
+
 func main() {
 	for {
 		fmt.Print("$ ")
@@ -99,66 +139,87 @@ func main() {
 			continue
 		}
 
-		cmd := inputSlice[0]
-
-		if cmd == "exit" {
+		if inputSlice[0] == "exit" {
 			return
 		}
+		
+		curCmd := currentCmd{
+			cmd: inputSlice[0],
+			args:  make([]string, 0, 4),
+			files: make([]string, 0, 2),
+		}
 
-		filesSlice := make([]string, 0, 2)
-		argsSlice := make([]string, 0, 4)
 		needWrite := false
 		for i := 1; i < len(inputSlice); i++ {
 			if needWrite {
-				filesSlice = append(filesSlice, inputSlice[i])
+				curCmd.files = append(curCmd.files, inputSlice[i])
 				needWrite = false
-			} else if inputSlice[i] == ">" || inputSlice[i] == "1>" {
+			} else if inputSlice[i] == ">" || inputSlice[i] == "1>" || inputSlice[i] == "2>" {
 				needWrite = true
+				curCmd.redirectType = inputSlice[i]
 			} else {
-				argsSlice = append(argsSlice, inputSlice[i])
+				curCmd.args = append(curCmd.args, inputSlice[i])
 			}
 		}
 
 
-		argsStr := strings.Join(argsSlice, " ")
+		argsStr := strings.Join(curCmd.args, " ")
 
-		if _, ok := existCmd[cmd]; ok {
-			output, err := ExecSpecificCmd(cmd, argsStr)
+		var stderr *os.File = os.Stderr
+		if curCmd.redirectType == "2>" {
+			tmp, err := create_files(curCmd.files)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "%v\n", err)
+				continue
+			}
+
+			defer func() {
+				_ = close_files(tmp)
+			}()
+
+			if len(tmp) > 0 {
+				stderr = tmp[len(tmp) - 1]
+			}
+		}
+
+		if _, ok := existCmd[curCmd.cmd]; ok {
+			output, err := ExecSpecificCmd(curCmd.cmd, argsStr)
+			if err != nil {
+				fmt.Fprintf(stderr, "%v\n", err)
 			}
 
 			if output != "" {
-				if len(filesSlice) == 0 {
+				if curCmd.redirectType != ">" && curCmd.redirectType != "1>" {
 					fmt.Printf("%s\n", output)
 				} else {
 					var whereWrite *os.File = os.Stdout
 
-					for i, filename := range filesSlice {
-						tmp, err := os.Create(filename)
-						if err != nil {
-							fmt.Fprintf(os.Stderr, "%v\n", err)
-						}
-
-						defer tmp.Close()
-
-						if i == len(filesSlice) - 1 {
-							whereWrite = tmp
-						}
-					}
-
-					_, err = whereWrite.WriteString(output + "\n")
+					tmp, err := create_files(curCmd.files)
 					if err != nil {
 						fmt.Fprintf(os.Stderr, "%v\n", err)
+						continue
+					}
+
+					defer func() {
+						_ = close_files(tmp)
+					}()
+
+					if len(tmp) > 0 {
+						whereWrite = tmp[len(tmp) - 1]
+
+						_, err = whereWrite.WriteString(output + "\n")
+						if err != nil {
+							fmt.Fprintf(stderr, "%v\n", err)
+						}
 					}
 				}
 			}
 		} else {
-			err := ExecOtherCommand(cmd, argsSlice, filesSlice)
+			err := ExecOtherCommand(curCmd.cmd, curCmd.args, curCmd.files)
 			if err != nil {
 				var exitErr *exec.ExitError
 				if !errors.As(err, &exitErr) {
-					fmt.Fprintf(os.Stderr, "%v\n", err)
+					fmt.Fprintf(stderr, "%v\n", err)
 				}
 			}
 		}
@@ -166,7 +227,6 @@ func main() {
 	}
 }
 
-// реализовать: она должна записать в файл если ее попросят
 func ExecOtherCommand(cmd string, argsSlice, filesSlice []string) error {
 	path := LookPath(cmd)
 	if path == "" {
