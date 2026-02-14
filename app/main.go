@@ -25,12 +25,20 @@ type parser struct {
 	state   	  state
 }
 
-func PrintLookPath(cmd, path string) {
+var existCmd = map[string]bool{
+	"exit": true,
+	"type": true,
+	"echo": true,
+	"pwd":  true,
+	"cd": 	true,
+}
+
+func PrintLookPath(cmd, path string) string {
 	if path == "" {
-		fmt.Printf("%s: not found\n", cmd)
-	} else {
-		fmt.Printf("%s is %s\n", cmd, path)
+		return fmt.Sprintf("%s: not found", cmd)
 	}
+
+	return fmt.Sprintf("%s is %s", cmd, path)
 }
 
 func LookPath(filename string) string {
@@ -75,15 +83,23 @@ func isExecutable(path string, info os.FileInfo) bool {
 	}
 }
 
-func main() {
-	existCmd := map[string]bool{
-		"exit": true,
-		"type": true,
-		"echo": true,
-		"pwd":  true,
-		"cd": 	true,
-	}
+		// возможно надо сделать свой тип в котором будет аргументы, файл куда записывать и было ли перенаправление
+		// и ее уже возвращать
+		// команда
+		// аргументы
+		// было ли перенаправление
+		// файлы куда записывать
+		// ошибки
+		// какой вывод туда записывать
+type Cmd struct {
+	cmd string
+	args []string
+	filename string
+	needRedirect bool
+}
 
+
+func main() {
 	for {
 		fmt.Print("$ ")
 		inputRaw, err := bufio.NewReader(os.Stdin).ReadString('\n')
@@ -98,64 +114,159 @@ func main() {
 			continue
 		}
 
+		// получить инпут и  разобрать его на кусочки
+		// получает какую-то основную команду из первого аргумента
+		// если ее нет, то ошибку выдает
+		// если есть, то идет но конца аргументов?
+		// если перенаправление, то создает файл или перезаписывает
+		// каждый аргумент отдает команде и записывает вывод ее, смотрит была ли ошибка?
+		// если ошибка, то выводит в консоль
+		// иначе записывает или перезапизаписывает в файл
+
+		// надо вывести весь вывод в одну функцию, которая будет принимать флаг перенаправлять или нет, куда писать (имя файла) и сообщение
+
 		cmd := inputSlice[0]
-		argsStr := strings.Join(inputSlice[1:], " ")
 
-		switch cmd {
-		case "cd":
-			tmpArgStr := argsStr
-			if strings.HasPrefix(tmpArgStr, "~") {
-				homeDir, err := os.UserHomeDir()
-				if err != nil {
-					fmt.Printf("%s: %s: No such file or directory\n", cmd, argsStr)
-				}
-				tmpArgStr = strings.Replace(tmpArgStr, "~", homeDir, 1)
-			}
+		if cmd == "exit" {
+			return
+		}
 
-			if _, err = os.Stat(tmpArgStr); err != nil {
-				fmt.Printf("%s: %s: No such file or directory\n", cmd, argsStr)
+		filesSlice := make([]string, 0, 2)
+		argsSlice := make([]string, 0, 4)
+		needWrite := false
+		for i := 1; i < len(inputSlice); i++ {
+			if needWrite {
+				filesSlice = append(filesSlice, inputSlice[i])
+				needWrite = false
+			} else if inputSlice[i] == ">" || inputSlice[i] == "1>" {
+				needWrite = true
 			} else {
-				if err = os.Chdir(tmpArgStr); err != nil {
-					fmt.Printf("%s: %s: No such file or directory\n", cmd, argsStr)
-				}
-			}
-		case "pwd":
-			if curDir, err := os.Getwd(); err == nil {
-				fmt.Printf("%s\n", curDir)
-			} else {
-				fmt.Fprintln(os.Stderr, err)
-			}
-		case "exit":
-			os.Exit(0)
-		case "echo":
-			fmt.Printf("%s\n", argsStr)
-		case "type":
-			if _, ok := existCmd[argsStr]; ok {
-				fmt.Printf("%s is a shell builtin\n", argsStr)
-			} else {
-				PrintLookPath(argsStr, LookPath(argsStr))
-			}
-		case "cat":
-			cmdForRun := exec.Command("cat", inputSlice[1:]...)
-			cmdForRun.Stdout = os.Stdout
-			cmdForRun.Stderr = os.Stderr
-			if err = cmdForRun.Run(); err != nil {
-				fmt.Fprintln(os.Stderr, err)
-			}
-		default:
-			path := LookPath(cmd)
-			if path == "" {
-				fmt.Printf("%s: command not found\n", cmd)
-			} else {
-				cmdForRun := exec.Command(cmd, inputSlice[1:]...)
-				cmdForRun.Stdout = os.Stdout
-				cmdForRun.Stderr = os.Stderr
-				if err = cmdForRun.Run(); err != nil {
-					fmt.Fprintln(os.Stderr, err)
-				}
+				argsSlice = append(argsSlice, inputSlice[i])
 			}
 		}
+
+
+		argsStr := strings.Join(argsSlice, " ")
+
+		if _, ok := existCmd[cmd]; ok {
+			output, err := ExecSpecificCmd(cmd, argsStr)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "%v\n", err)
+			}
+
+			if output != "" {
+				if len(filesSlice) == 0 {
+					fmt.Printf("%s\n", output)
+				} else {
+					var whereWrite *os.File = os.Stdout
+
+					for i, filename := range filesSlice {
+					tmp, err := os.Create(filename)
+					if err != nil {
+						fmt.Fprintf(os.Stderr, "%v\n", err)
+					}
+
+					defer tmp.Close()
+
+					if i == len(filesSlice) - 1 {
+						whereWrite = tmp
+					}
+
+					_, err = whereWrite.WriteString(output + "\n")
+					if err != nil {
+						fmt.Fprintf(os.Stderr, "%v\n", err)
+					}
+				}
 	}
+			}
+		} else {
+			err := ExecOtherCommand(cmd, argsSlice, filesSlice)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "%v\n", err)
+			}
+		}
+
+
+	}
+}
+
+// реализовать: она должна записать в файл если ее попросят
+func ExecOtherCommand(cmd string, argsSlice, filesSlice []string) error {
+	path := LookPath(cmd)
+	if path == "" {
+		return fmt.Errorf("%s: command not found", cmd)
+	}
+
+	var whereWrite *os.File = os.Stdout
+
+
+	for i, filename := range filesSlice {
+		tmp, err := os.Create(filename)
+		if err != nil {
+			return fmt.Errorf("%w", err)
+		}
+
+		defer tmp.Close()
+
+		if i == len(filesSlice) - 1 {
+			whereWrite = tmp
+		}
+	}
+
+	cmdForRun := exec.Command(cmd, argsSlice...)
+	cmdForRun.Stdout = whereWrite
+	cmdForRun.Stderr = os.Stderr
+
+	if err := cmdForRun.Run(); err != nil {
+		return fmt.Errorf("%w", err)
+	}
+
+	return nil
+} 
+
+
+func ExecSpecificCmd(cmd string, argsStr string) (output string, errOutput error) {
+	switch cmd {
+	case "cd":
+		tmpArgStr := argsStr
+		if strings.HasPrefix(tmpArgStr, "~") {
+			homeDir, err := os.UserHomeDir()
+			if err != nil {
+				errOutput = fmt.Errorf("%s: %s: No such file or directory", cmd, argsStr)
+			}
+			tmpArgStr = strings.Replace(tmpArgStr, "~", homeDir, 1)
+		}
+		if _, err := os.Stat(tmpArgStr); err != nil {
+			errOutput = fmt.Errorf("%s: %s: No such file or directory", cmd, argsStr)
+		} else {
+			if err = os.Chdir(tmpArgStr); err != nil {
+				errOutput = fmt.Errorf("%s: %s: No such file or directory", cmd, argsStr)
+			}
+		}
+	case "pwd":
+		if curDir, err := os.Getwd(); err == nil {
+			output = fmt.Sprintf("%s", curDir)
+		} else {
+			errOutput = fmt.Errorf("%w", err)
+		}
+	case "echo":
+		output = fmt.Sprintf("%s", argsStr)
+	case "type":
+		if _, ok := existCmd[argsStr]; ok {
+			output = fmt.Sprintf("%s is a shell builtin", argsStr)
+		} else {
+			output = PrintLookPath(argsStr, LookPath(argsStr))
+		}
+	// case "cat":
+	// 	cmdForRun := exec.Command("cat", inputSlice[1:]...)
+	// 	cmdForRun.Stdout = os.Stdout
+	// 	cmdForRun.Stderr = os.Stderr
+	// 	if err = cmdForRun.Run(); err != nil {
+	// 		fmt.Fprintln(os.Stderr, err)
+	// 	}
+	}
+
+	return output, errOutput
 }
 
 func ParseInput(input string) ([]string, error) {
@@ -197,7 +308,7 @@ func ParseInput(input string) ([]string, error) {
 			}
 		} else if prsr.state == stateDoubleQuote {
 			if prsr.backslashSeen {
-				if ch == '\\' || ch == '"' {
+				if ch == '\\' || ch == '"' { // $, `
 					prsr.current.WriteRune(ch)
 				} else {
 					prsr.current.WriteRune('\\')
