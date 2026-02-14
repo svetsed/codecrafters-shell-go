@@ -166,19 +166,25 @@ func main() {
 		argsStr := strings.Join(curCmd.args, " ")
 
 		var stderr *os.File = os.Stderr
-		if curCmd.redirectType == "2>" {
-			tmp, err := create_files(curCmd.files)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "%v\n", err)
-				continue
-			}
+		var stdout *os.File = os.Stdout
 
-			defer func() {
-				_ = close_files(tmp)
-			}()
+		if len(curCmd.files) > 0 {
+			for i, filename := range curCmd.files {
+				tmp, err := os.Create(filename)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "%v\n", err)
+					continue
+				}
 
-			if len(tmp) > 0 {
-				stderr = tmp[len(tmp) - 1]
+				defer tmp.Close()
+
+				if i == len(curCmd.files) - 1 {
+					if curCmd.redirectType == "2>" {
+						stderr = tmp
+					} else  if curCmd.redirectType == ">" ||  curCmd.redirectType == "1>" {
+						stdout = tmp
+					} 
+				}
 			}
 		}
 
@@ -190,27 +196,9 @@ func main() {
 
 			if output != "" {
 				if curCmd.redirectType != ">" && curCmd.redirectType != "1>" {
-					fmt.Printf("%s\n", output)
-				} else {
-					var whereWrite *os.File = os.Stdout
-
-					tmp, err := create_files(curCmd.files)
+					fmt.Fprintf(stdout,"%s\n", output)
 					if err != nil {
-						fmt.Fprintf(os.Stderr, "%v\n", err)
-						continue
-					}
-
-					defer func() {
-						_ = close_files(tmp)
-					}()
-
-					if len(tmp) > 0 {
-						whereWrite = tmp[len(tmp) - 1]
-
-						_, err = whereWrite.WriteString(output + "\n")
-						if err != nil {
-							fmt.Fprintf(stderr, "%v\n", err)
-						}
+						fmt.Fprintf(stderr, "%v\n", err)
 					}
 				}
 			}
