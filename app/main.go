@@ -41,6 +41,7 @@ type currentCmd struct {
 	redirectType string
 	stderr 		 *os.File
 	stdout 		 *os.File
+	flag		 int
 }
 
 func (cc *currentCmd) ExecOtherCommand() error {
@@ -103,6 +104,36 @@ func (cc *currentCmd) ExecSpecificCmd() (output string, errOutput error) {
 	return output, errOutput
 }
 
+func HandleInputToStruct(inputSlice []string) *currentCmd {
+	curCmd := currentCmd{
+		cmd: inputSlice[0],
+		args:  make([]string, 0, 4),
+		files: make([]string, 0, 2),
+		stderr: os.Stderr,
+		stdout: os.Stdout,
+	}
+
+	needWrite := false
+	for i := 1; i < len(inputSlice); i++ {
+		if needWrite {
+			curCmd.files = append(curCmd.files, inputSlice[i])
+			needWrite = false
+		} else if inputSlice[i] == ">" || inputSlice[i] == "1>" || inputSlice[i] == "2>" {
+			needWrite = true
+			curCmd.redirectType = inputSlice[i]
+			curCmd.flag = os.O_CREATE | os.O_RDWR
+		} else if inputSlice[i] == ">>" || inputSlice[i] == "1>>" || inputSlice[i] == "2>>" {
+			needWrite = true
+			curCmd.redirectType = inputSlice[i]
+			curCmd.flag = os.O_CREATE | os.O_RDWR | os.O_APPEND
+		} else {
+			curCmd.args = append(curCmd.args, inputSlice[i])
+		}
+	}
+
+	return &curCmd
+}
+
 func main() {
 	for {
 		fmt.Print("$ ")
@@ -122,30 +153,11 @@ func main() {
 			return
 		}
 		
-		curCmd := currentCmd{
-			cmd: inputSlice[0],
-			args:  make([]string, 0, 4),
-			files: make([]string, 0, 2),
-			stderr: os.Stderr,
-			stdout: os.Stdout,
-		}
-
-		needWrite := false
-		for i := 1; i < len(inputSlice); i++ {
-			if needWrite {
-				curCmd.files = append(curCmd.files, inputSlice[i])
-				needWrite = false
-			} else if inputSlice[i] == ">" || inputSlice[i] == "1>" || inputSlice[i] == "2>" {
-				needWrite = true
-				curCmd.redirectType = inputSlice[i]
-			} else {
-				curCmd.args = append(curCmd.args, inputSlice[i])
-			}
-		}
+		curCmd := HandleInputToStruct(inputSlice)
 
 		if len(curCmd.files) > 0 {
 			for i, filename := range curCmd.files {
-				tmp, err := os.Create(filename)
+				tmp, err := os.OpenFile(filename, curCmd.flag, 0766)
 				if err != nil {
 					fmt.Fprintf(curCmd.stderr, "%v\n", err)
 				}
@@ -153,9 +165,9 @@ func main() {
 				defer tmp.Close()
 
 				if i == len(curCmd.files) - 1 {
-					if curCmd.redirectType == "2>" {
+					if curCmd.redirectType == "2>" || curCmd.redirectType == "2>>" {
 						curCmd.stderr = tmp
-					} else  if curCmd.redirectType == ">" ||  curCmd.redirectType == "1>" {
+					} else  if curCmd.redirectType == ">" || curCmd.redirectType == ">>" || curCmd.redirectType == "1>" || curCmd.redirectType == "1>>" {
 						curCmd.stdout = tmp
 					} 
 				}
