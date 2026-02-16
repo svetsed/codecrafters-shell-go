@@ -154,6 +154,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	defer func() {
+		if err := rl.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error closing readline: %v\n", err)
+		}
+	}()
+
 	for {
 
 		inputRaw, err := rl.Readline()
