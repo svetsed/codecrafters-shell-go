@@ -142,10 +142,36 @@ func completer() *readline.PrefixCompleter {
 	)
 }
 
+func hasCompletions(line string) bool {
+	if line == "" {
+		return false
+	}
+
+	for k := range existCmd {
+		if strings.HasPrefix(k, line) {
+			return true
+		}
+	}
+
+	return false
+}
+
 func main() {
 	config := &readline.Config{
 		Prompt: "$ ",
 		AutoComplete: completer(),
+		Listener: readline.FuncListener(func(line []rune, pos int, key rune) ([]rune, int, bool) {
+			if key != readline.CharTab {
+				return line, pos, false
+			}
+
+			if !hasCompletions(string(line)) {
+				fmt.Print("\x07") // bell
+				return line, pos, true
+			}
+
+			return line, pos, false
+		}),
 	}
 	
 	rl, err := readline.NewEx(config)
@@ -169,8 +195,8 @@ func main() {
 		}
 
 		inputSlice, err := ParseInput(inputRaw)
+		// skip empty input
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			continue
 		}
 
