@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
 	"os"
@@ -9,6 +8,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+
+	"github.com/chzyer/readline"
 )
 
 type state int
@@ -134,13 +135,31 @@ func HandleInputToStruct(inputSlice []string) *currentCmd {
 	return &curCmd
 }
 
+func completer() *readline.PrefixCompleter {
+	return readline.NewPrefixCompleter(
+		readline.PcItem("echo"),
+		readline.PcItem("exit"),
+	)
+}
+
 func main() {
+	config := &readline.Config{
+		Prompt: "$ ",
+		AutoComplete: completer(),
+	}
+	
+	rl, err := readline.NewEx(config)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error reading input: %v\n", err)
+		os.Exit(1)
+	}
+
 	for {
-		fmt.Print("$ ")
-		inputRaw, err := bufio.NewReader(os.Stdin).ReadString('\n')
+
+		inputRaw, err := rl.Readline()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error reading input: %v\n", err)
-			os.Exit(1)
+			// io.EOF (Ctrl+D) / readline.ErrInterrupt (Ctrl+C)
+			break
 		}
 
 		inputSlice, err := ParseInput(inputRaw)
