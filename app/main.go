@@ -135,23 +135,6 @@ func HandleInputToStruct(inputSlice []string) *currentCmd {
 	return &curCmd
 }
 
-// func completerFromPath(line string) []string {
-// 	words := strings.Split(line, " ")
-// 	if len(words) == 0 {
-// 		return nil
-// 	}
-
-// 	currentCmd := words[(len(words) - 1)]
-// }
-
-// func completer() *readline.PrefixCompleter {
-// 	return readline.NewPrefixCompleter(
-// 		readline.PcItem("echo"),
-// 		readline.PcItem("exit"),
-// 		readline.PcItemDynamic(completerFromPath),
-// 	)
-// }
-
 type pathCompleter struct {}
 
 func (pc *pathCompleter) Do(line []rune, pos int) (newLine [][]rune, length int) {
@@ -203,7 +186,7 @@ func (pc *pathCompleter) Do(line []rune, pos int) (newLine [][]rune, length int)
 			if file.IsDir() {
 				continue
 			}
-			
+
 			if isExecutable(fullPath, info) {
 				if !strings.HasPrefix(fileStr, currentWord) {
 					continue
@@ -250,18 +233,6 @@ func main() {
 	config := &readline.Config{
 		Prompt: "$ ",
 		AutoComplete: &pathCompleter{},
-		// Listener: readline.FuncListener(func(line []rune, pos int, key rune) ([]rune, int, bool) {
-		// 	if key != readline.CharTab {
-		// 		return line, pos, false
-		// 	}
-
-		// 	if _, ok := hasCompletions(string(line)); !ok {
-		// 		fmt.Print("\x07") // bell
-		// 		return line, pos, true
-		// 	}
-
-		// 	return line, pos, false
-		// }),
 	}
 	
 	rl, err := readline.NewEx(config)
