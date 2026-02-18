@@ -185,17 +185,34 @@ func (pc *pathCompleter) Do(line []rune, pos int) (newLine [][]rune, length int)
 	}
 
 	matches := []string{}
-	for _, path := range listPath {
-		info, err := os.Stat(path)
+	unique := make(map[string]bool)
+	for _, dir := range listPath {
+		files, err := os.ReadDir(dir)
 		if err != nil {
 			continue
-		} 
+		}
 
-		if !info.IsDir() {
-			if isExec := isExecutable(path, info); isExec {
-				if strings.HasPrefix(path, currentWord) {
-					matches = append(matches, path)
+		for _, file := range files {
+			fileStr := file.Name()
+			fullPath := filepath.Join(dir, fileStr)
+			info, err := file.Info()
+			if err != nil {
+				continue
+			}
+
+			if file.IsDir() {
+				continue
+			}
+			
+			if isExecutable(fullPath, info) {
+				if !strings.HasPrefix(fileStr, currentWord) {
+					continue
 				}
+
+				if _, exist := unique[fileStr]; !exist {
+						unique[fileStr] = true
+						matches = append(matches, fileStr)
+					}
 			}
 		}
 	}
