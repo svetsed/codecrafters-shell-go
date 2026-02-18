@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 
 	"github.com/chzyer/readline"
@@ -135,7 +136,11 @@ func HandleInputToStruct(inputSlice []string) *currentCmd {
 	return &curCmd
 }
 
-type pathCompleter struct {}
+type pathCompleter struct {
+	currentLine string
+	matches 	[]string
+	counterTAB 	int
+}
 
 func (pc *pathCompleter) Do(line []rune, pos int) (newLine [][]rune, length int) {
 	lineStr := string(line[:pos])
@@ -148,71 +153,82 @@ func (pc *pathCompleter) Do(line []rune, pos int) (newLine [][]rune, length int)
 		currentWord = string(line[lastSpace+1:pos])
 	}
 
-	found := false
-	for cmd := range existCmd {
-		if strings.HasPrefix(cmd, currentWord) {
-			found = true
-			ending := cmd[len(currentWord):]
-			if ending != "" {
-				newLine = append(newLine, []rune(ending + " "))
-			}
-		}
-	}
-	if found {
-		return newLine, len(currentWord)
+	if currentWord == "" {
+		fmt.Print("\x07")
+		return nil, 0
 	}
 
-	listPath := GetListPath()
-	if listPath == nil {
-		return newLine, len(currentWord)
-	}
 
-	matches := []string{}
-	unique := make(map[string]bool)
-	for _, dir := range listPath {
-		files, err := os.ReadDir(dir)
-		if err != nil {
-			continue
+	if pc.currentLine != currentWord {
+		pc.counterTAB = 0
+		pc.currentLine = currentWord
+		pc.matches = []string{}
+
+		listPath := GetListPath()
+		if listPath == nil {
+			return nil, 0
 		}
 
-		for _, file := range files {
-			fileStr := file.Name()
-			fullPath := filepath.Join(dir, fileStr)
-			info, err := file.Info()
+		unique := make(map[string]bool)
+		for _, dir := range listPath {
+			files, err := os.ReadDir(dir)
 			if err != nil {
 				continue
 			}
 
-			if file.IsDir() {
-				continue
-			}
-
-			if isExecutable(fullPath, info) {
-				if !strings.HasPrefix(fileStr, currentWord) {
+			for _, file := range files {
+				fileStr := file.Name()
+				fullPath := filepath.Join(dir, fileStr)
+				info, err := file.Info()
+				if err != nil {
 					continue
 				}
 
-				if _, exist := unique[fileStr]; !exist {
-						unique[fileStr] = true
-						matches = append(matches, fileStr)
+				if file.IsDir() {
+					continue
+				}
+
+				if isExecutable(fullPath, info) {
+					if !strings.HasPrefix(fileStr, currentWord) {
+						continue
 					}
+
+					if _, exist := unique[fileStr]; !exist {
+							unique[fileStr] = true
+							pc.matches = append(pc.matches, fileStr)
+						}
+				}
 			}
 		}
-	}
 
-	if len(matches) == 0 {
-		fmt.Print("\x07")
-		return nil, len(currentWord)
-	}
+		if len(pc.matches) == 0 {
+			fmt.Print("\x07")
+			return nil, 0
+		}
 
-	for _, match := range matches {
-		ending := match[len(currentWord):]
-		if ending != "" {
-            newLine = append(newLine, []rune(ending + " "))
-        }
-	}
+		if len(pc.matches) == 1 {
+			ending := pc.matches[0][len(currentWord):]
+			newLine = append(newLine, []rune(ending + " "))
+			return newLine, len(currentWord)
+		} 
 
-	return newLine, len(currentWord)
+		if pc.counterTAB == 0 {
+			fmt.Print("\x07")
+		}
+		pc.counterTAB = 1
+		sort.Strings(pc.matches)
+		return nil, 0
+
+
+	} else {
+		if pc.counterTAB == 1 {
+			fmt.Printf("\n%s\n", strings.Join(pc.matches, "  "))
+			return nil, 0
+		}
+	}
+	
+
+	return nil, 0
 }
 
 func hasCompletions(line string) (string, bool) {
@@ -232,7 +248,9 @@ func hasCompletions(line string) (string, bool) {
 func main() {
 	config := &readline.Config{
 		Prompt: "$ ",
-		AutoComplete: &pathCompleter{},
+		AutoComplete: &pathCompleter{
+			matches: []string{},
+		},
 	}
 	
 	rl, err := readline.NewEx(config)
