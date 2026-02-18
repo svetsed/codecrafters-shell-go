@@ -135,49 +135,131 @@ func HandleInputToStruct(inputSlice []string) *currentCmd {
 	return &curCmd
 }
 
-func completer() *readline.PrefixCompleter {
-	return readline.NewPrefixCompleter(
-		readline.PcItem("echo"),
-		readline.PcItem("exit"),
-	)
-}
+// func completerFromPath(line string) []string {
+// 	words := strings.Split(line, " ")
+// 	if len(words) == 0 {
+// 		return nil
+// 	}
 
-func hasCompletions(line string) bool {
-	if line == "" {
-		return false
+// 	currentCmd := words[(len(words) - 1)]
+// }
+
+// func completer() *readline.PrefixCompleter {
+// 	return readline.NewPrefixCompleter(
+// 		readline.PcItem("echo"),
+// 		readline.PcItem("exit"),
+// 		readline.PcItemDynamic(completerFromPath),
+// 	)
+// }
+
+type pathCompleter struct {}
+
+func (pc *pathCompleter) Do(line []rune, pos int) (newLine [][]rune, length int) {
+	lineStr := string(line[:pos])
+	lastSpace := strings.LastIndex(string(line[:pos]), " ")
+	var currentWord string
+
+	if lastSpace == -1 { // no space -> getting line[:pos]
+		currentWord = lineStr
+	} else {
+		currentWord = string(line[lastSpace+1:pos])
 	}
 
-	for k := range existCmd {
-		if strings.HasPrefix(k, line) {
-			return true
+	found := false
+	for cmd := range existCmd {
+		if strings.HasPrefix(cmd, currentWord) {
+			found = true
+			ending := cmd[len(currentWord):]
+			if ending != "" {
+				newLine = append(newLine, []rune(ending + " "))
+			}
+		}
+	}
+	if found {
+		return newLine, len(currentWord)
+	}
+
+	listPath := GetListPath()
+	if listPath == nil {
+		return newLine, len(currentWord)
+	}
+
+	matches := []string{}
+	for _, path := range listPath {
+		info, err := os.Stat(path)
+		if err != nil {
+			continue
+		} 
+
+		if !info.IsDir() {
+			if isExec := isExecutable(path, info); isExec {
+				if strings.HasPrefix(path, currentWord) {
+					matches = append(matches, path)
+				}
+			}
 		}
 	}
 
-	return false
+	if len(matches) == 0 {
+		fmt.Print("\x07")
+		return nil, len(currentWord)
+	}
+
+	for _, match := range matches {
+		ending := match[len(currentWord):]
+		if ending != "" {
+            newLine = append(newLine, []rune(ending + " "))
+        }
+	}
+
+	return newLine, len(currentWord)
+
+	// найти начала начало слова
+	// 1. Преобразуем line в строку для удобства
+    // 2. Определяем, что именно сейчас дополняем (первое слово?)
+    // 3. Получаем список программ из PATH, подходящих под начало
+    // 4. Для каждой подходящей программы:
+    //    - вычисляем окончание (то, что нужно дописать)
+    //    - добавляем это окончание в newLine
+    // 5. Возвращаем newLine и длину общей части
+}
+
+func hasCompletions(line string) (string, bool) {
+	if line == "" {
+		return "", false
+	}
+
+	for cmd := range existCmd {
+		if strings.HasPrefix(cmd, line) {
+			return cmd, true 
+		}
+	}
+
+	return "", false
 }
 
 func main() {
 	config := &readline.Config{
 		Prompt: "$ ",
-		AutoComplete: completer(),
-		Listener: readline.FuncListener(func(line []rune, pos int, key rune) ([]rune, int, bool) {
-			if key != readline.CharTab {
-				return line, pos, false
-			}
+		AutoComplete: &pathCompleter{},
+		// Listener: readline.FuncListener(func(line []rune, pos int, key rune) ([]rune, int, bool) {
+		// 	if key != readline.CharTab {
+		// 		return line, pos, false
+		// 	}
 
-			if !hasCompletions(string(line)) {
-				fmt.Print("\x07") // bell
-				return line, pos, true
-			}
+		// 	if _, ok := hasCompletions(string(line)); !ok {
+		// 		fmt.Print("\x07") // bell
+		// 		return line, pos, true
+		// 	}
 
-			return line, pos, false
-		}),
+		// 	return line, pos, false
+		// }),
 	}
 	
 	rl, err := readline.NewEx(config)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error reading input: %v\n", err)
-		os.Exit(1)
+		return
 	}
 
 	defer func() {
@@ -326,13 +408,20 @@ func PrintLookPath(cmd, path string) string {
 	return fmt.Sprintf("%s is %s", cmd, path)
 }
 
-func LookPath(filename string) string {
+func GetListPath() []string {
 	pathEnv := os.Getenv("PATH")
 	if pathEnv == "" {
-		return ""
+		return nil
 	}
 
-	listPath := strings.Split(pathEnv, string(os.PathListSeparator))
+	return strings.Split(pathEnv, string(os.PathListSeparator))
+}
+
+func LookPath(filename string) string {
+	listPath := GetListPath()
+	if listPath == nil {
+		return ""
+	}
 
 	for _, dir := range listPath {
 		path := filepath.Join(dir, filename)
