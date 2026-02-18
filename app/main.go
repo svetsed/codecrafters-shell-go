@@ -136,98 +136,139 @@ func HandleInputToStruct(inputSlice []string) *currentCmd {
 	return &curCmd
 }
 
-type pathCompleter struct {
-	currentLine string
-	matches 	[]string
-	counterTAB 	int
+type cmdCompleter struct {
+	lastPrefix string
+	matches	   []string
+	tab 		int
+	builtins  	[]string
+	externals   []string
+	loadedExt	bool
 }
 
-func (pc *pathCompleter) Do(line []rune, pos int) (newLine [][]rune, length int) {
-	lineStr := string(line[:pos])
-	lastSpace := strings.LastIndex(string(line[:pos]), " ")
-	var currentWord string
-
-	if lastSpace == -1 { // no space -> getting line[:pos]
-		currentWord = lineStr
-	} else {
-		currentWord = string(line[lastSpace+1:pos])
+func NewCmdCompleter() *cmdCompleter {
+	cc := &cmdCompleter{
+		matches: []string{},
+		builtins: []string{"echo", "exit"},
+		externals: []string{},
+		// candidates: [][]rune{},
 	}
 
-	if currentWord == "" {
-		fmt.Print("\x07")
-		return nil, 0
+	return cc
+}
+
+func (cc *cmdCompleter) scanExternals() {
+	listDirs := GetListPath()
+	if listDirs == nil {
+		return
 	}
 
-
-	if pc.currentLine != currentWord {
-		pc.counterTAB = 0
-		pc.currentLine = currentWord
-		pc.matches = []string{}
-
-		listPath := GetListPath()
-		if listPath == nil {
-			return nil, 0
+	uniq := make(map[string]bool)
+	for _, dir := range listDirs {
+		files, err := os.ReadDir(dir)
+		if err != nil {
+			continue
 		}
 
-		unique := make(map[string]bool)
-		for _, dir := range listPath {
-			files, err := os.ReadDir(dir)
+		for _, file := range files {
+			info, err := file.Info()
 			if err != nil {
 				continue
 			}
 
-			for _, file := range files {
-				fileStr := file.Name()
-				fullPath := filepath.Join(dir, fileStr)
-				info, err := file.Info()
-				if err != nil {
-					continue
-				}
+			if file.IsDir() {
+				continue
+			}
 
-				if file.IsDir() {
-					continue
-				}
+			fileStr := file.Name()
+			fullPath := filepath.Join(dir, fileStr)
 
-				if isExecutable(fullPath, info) {
-					if !strings.HasPrefix(fileStr, currentWord) {
-						continue
-					}
-
-					if _, exist := unique[fileStr]; !exist {
-							unique[fileStr] = true
-							pc.matches = append(pc.matches, fileStr)
-						}
+			if isExecutable(fullPath, info) { // if info.Mode().IsRegular() && info.Mode()&0111 != 0 {
+				if _, exist := uniq[fileStr]; !exist {
+					uniq[fileStr] = true
+					cc.externals = append(cc.externals, fileStr)
 				}
 			}
 		}
+	}
 
-		if len(pc.matches) == 0 {
-			fmt.Print("\x07")
-			return nil, 0
-		}
+	cc.loadedExt = true
+}
 
-		if len(pc.matches) == 1 {
-			ending := pc.matches[0][len(currentWord):]
-			newLine = append(newLine, []rune(ending + " "))
-			return newLine, len(currentWord)
-		} 
+func (cc *cmdCompleter) Do(line []rune, pos int) ([][]rune, int) {
+	lineStr := string(line[:pos])
+	lastSpace := strings.LastIndex(string(line[:pos]), " ")
+	var prefix string
 
-		if pc.counterTAB == 0 {
-			fmt.Print("\x07")
-		}
-		pc.counterTAB = 1
-		sort.Strings(pc.matches)
-		return nil, 0
-
-
+	if lastSpace == -1 { // no space -> getting line[:pos]
+		prefix = lineStr
 	} else {
-		if pc.counterTAB == 1 {
-			fmt.Printf("\n%s\n", strings.Join(pc.matches, "  "))
-			return nil, 0
+		prefix = string(line[lastSpace+1:pos])
+	}
+
+	if prefix == "" {
+		fmt.Print("\x07")
+		return nil, 0
+	}
+
+	if cc.lastPrefix == prefix && cc.tab == 1 {
+		fmt.Printf("\n%s\n", strings.Join(cc.matches, "  "))
+		return nil, 0
+	}
+
+	cc.tab = 0
+	cc.lastPrefix = prefix
+	cc.matches = []string{}
+
+	if !cc.loadedExt {
+		cc.scanExternals()
+	}
+
+	uniqMatches := make(map[string]bool)
+	for _, cmd := range cc.builtins {
+		if strings.HasPrefix(cmd, prefix) {
+			if _, exist := uniqMatches[cmd]; !exist {
+				uniqMatches[cmd] = true
+				cc.matches = append(cc.matches, cmd)
+			}
+
 		}
 	}
-	
 
+	for _, cmd := range cc.externals {
+		if strings.HasPrefix(cmd, prefix) {
+			if _, exist := uniqMatches[cmd]; !exist {
+				uniqMatches[cmd] = true
+				cc.matches = append(cc.matches, cmd)
+			}
+		}
+	}
+
+	if len(cc.matches) == 0 {
+		fmt.Print("\x07")
+		return nil, 0 
+	}
+
+	if len(cc.matches) == 1 {
+		singleCandidate :=  make([][]rune, 1)
+		ending := []rune(cc.matches[0][len(prefix):])
+		ending = append(ending, ' ')
+		singleCandidate[0] = ending
+
+		return singleCandidate, len([]rune(prefix))
+	}
+
+	if cc.tab == 0 {
+		fmt.Print("\x07")
+		cc.tab = 1
+	}
+
+	sort.Strings(cc.matches)
+
+	// candidates := make([][]rune, len(matches))
+	// for i, cmd := range matches {
+	// 	ending := []rune(cmd[len(prefix):])
+	// 	candidates[i] = ending
+	// }
 	return nil, 0
 }
 
@@ -246,14 +287,12 @@ func hasCompletions(line string) (string, bool) {
 }
 
 func main() {
-	config := &readline.Config{
+	rl, err := readline.NewEx(&readline.Config{
 		Prompt: "$ ",
-		AutoComplete: &pathCompleter{
-			matches: []string{},
-		},
-	}
-	
-	rl, err := readline.NewEx(config)
+		AutoComplete: NewCmdCompleter(),
+		InterruptPrompt: "^C",
+		EOFPrompt: "exit",
+	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error reading input: %v\n", err)
 		return
@@ -410,8 +449,8 @@ func GetListPath() []string {
 	if pathEnv == "" {
 		return nil
 	}
-
-	return strings.Split(pathEnv, string(os.PathListSeparator))
+	
+	return filepath.SplitList(pathEnv)
 }
 
 func LookPath(filename string) string {
