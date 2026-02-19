@@ -150,7 +150,6 @@ func NewCmdCompleter() *cmdCompleter {
 		matches: []string{},
 		builtins: []string{"echo", "exit"},
 		externals: []string{},
-		// candidates: [][]rune{},
 	}
 
 	return cc
@@ -194,6 +193,28 @@ func (cc *cmdCompleter) scanExternals() {
 	cc.loadedExt = true
 }
 
+func (cc *cmdCompleter) GetMatches() {
+	uniqMatches := make(map[string]bool)
+	for _, cmd := range cc.builtins {
+		if strings.HasPrefix(cmd, cc.lastPrefix) {
+			if _, exist := uniqMatches[cmd]; !exist {
+				uniqMatches[cmd] = true
+				cc.matches = append(cc.matches, cmd)
+			}
+
+		}
+	}
+
+	for _, cmd := range cc.externals {
+		if strings.HasPrefix(cmd, cc.lastPrefix) {
+			if _, exist := uniqMatches[cmd]; !exist {
+				uniqMatches[cmd] = true
+				cc.matches = append(cc.matches, cmd)
+			}
+		}
+	}
+}
+
 func (cc *cmdCompleter) Do(line []rune, pos int) ([][]rune, int) {
 	lineStr := string(line[:pos])
 	lastSpace := strings.LastIndex(string(line[:pos]), " ")
@@ -212,6 +233,7 @@ func (cc *cmdCompleter) Do(line []rune, pos int) ([][]rune, int) {
 
 	if cc.lastPrefix == prefix && cc.tab == 1 {
 		fmt.Printf("\n%s\n", strings.Join(cc.matches, "  "))
+		fmt.Printf("$ " + lineStr)
 		return nil, 0
 	}
 
@@ -223,25 +245,7 @@ func (cc *cmdCompleter) Do(line []rune, pos int) ([][]rune, int) {
 		cc.scanExternals()
 	}
 
-	uniqMatches := make(map[string]bool)
-	for _, cmd := range cc.builtins {
-		if strings.HasPrefix(cmd, prefix) {
-			if _, exist := uniqMatches[cmd]; !exist {
-				uniqMatches[cmd] = true
-				cc.matches = append(cc.matches, cmd)
-			}
-
-		}
-	}
-
-	for _, cmd := range cc.externals {
-		if strings.HasPrefix(cmd, prefix) {
-			if _, exist := uniqMatches[cmd]; !exist {
-				uniqMatches[cmd] = true
-				cc.matches = append(cc.matches, cmd)
-			}
-		}
-	}
+	cc.GetMatches()
 
 	if len(cc.matches) == 0 {
 		fmt.Print("\x07")
@@ -249,12 +253,10 @@ func (cc *cmdCompleter) Do(line []rune, pos int) ([][]rune, int) {
 	}
 
 	if len(cc.matches) == 1 {
-		singleCandidate :=  make([][]rune, 1)
 		ending := []rune(cc.matches[0][len(prefix):])
 		ending = append(ending, ' ')
-		singleCandidate[0] = ending
 
-		return singleCandidate, len([]rune(prefix))
+		return [][]rune{ending}, len([]rune(prefix))
 	}
 
 	if cc.tab == 0 {
@@ -264,11 +266,6 @@ func (cc *cmdCompleter) Do(line []rune, pos int) ([][]rune, int) {
 
 	sort.Strings(cc.matches)
 
-	// candidates := make([][]rune, len(matches))
-	// for i, cmd := range matches {
-	// 	ending := []rune(cmd[len(prefix):])
-	// 	candidates[i] = ending
-	// }
 	return nil, 0
 }
 
