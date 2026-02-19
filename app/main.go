@@ -138,6 +138,7 @@ func HandleInputToStruct(inputSlice []string) *currentCmd {
 
 type cmdCompleter struct {
 	lastPrefix string
+	lenPrefixInRune int
 	matches	   []string
 	tab 		int
 	builtins  	[]string
@@ -215,6 +216,24 @@ func (cc *cmdCompleter) GetMatches() {
 	}
 }
 
+func (cc *cmdCompleter) LongestCommonPrefix() []rune {
+	firstStr := []rune(cc.matches[0])
+
+	for i, ch := range firstStr {
+		for _, str := range cc.matches[1:] {
+			tmpStrInRune := []rune(str) 
+			if i >= len(tmpStrInRune) {
+				return firstStr[:i]
+			}
+			if tmpStrInRune[i] != ch {
+				return firstStr[:i]
+			} 
+		}
+	}
+
+	return firstStr
+}
+
 func (cc *cmdCompleter) Do(line []rune, pos int) ([][]rune, int) {
 	lineStr := string(line[:pos])
 	lastSpace := strings.LastIndex(string(line[:pos]), " ")
@@ -233,12 +252,13 @@ func (cc *cmdCompleter) Do(line []rune, pos int) ([][]rune, int) {
 
 	if cc.lastPrefix == prefix && cc.tab == 1 {
 		fmt.Printf("\n%s\n", strings.Join(cc.matches, "  "))
-		fmt.Printf("$ " + lineStr)
+		fmt.Print("$ " + lineStr)
 		return nil, 0
 	}
 
 	cc.tab = 0
 	cc.lastPrefix = prefix
+	cc.lenPrefixInRune = len([]rune(prefix))
 	cc.matches = []string{}
 
 	if !cc.loadedExt {
@@ -253,19 +273,25 @@ func (cc *cmdCompleter) Do(line []rune, pos int) ([][]rune, int) {
 	}
 
 	if len(cc.matches) == 1 {
-		ending := []rune(cc.matches[0][len(prefix):])
+		ending := []rune(cc.matches[0][cc.lenPrefixInRune:])
 		ending = append(ending, ' ')
 
-		return [][]rune{ending}, len([]rune(prefix))
+		return [][]rune{ending}, cc.lenPrefixInRune
 	}
 
-	if cc.tab == 0 {
-		fmt.Print("\x07")
-		cc.tab = 1
-	}
 
 	sort.Strings(cc.matches)
+	commonPrefix := cc.LongestCommonPrefix()
 
+	if len(commonPrefix) > cc.lenPrefixInRune {
+		ending := commonPrefix[cc.lenPrefixInRune:]
+		return [][]rune{ending}, cc.lenPrefixInRune
+	} else {
+		if cc.tab == 0 {
+			fmt.Print("\x07")
+			cc.tab = 1
+		}
+	}
 	return nil, 0
 }
 
