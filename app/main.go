@@ -51,8 +51,6 @@ func main() {
 
 		cmds := executors.HandleInputToCmds(inputSliceCmds)
 
-		fmt.Printf("%#v\n", cmds)
-
 		if cmds.CountCmd == 2 { 
 
 			r, w, err := os.Pipe()
