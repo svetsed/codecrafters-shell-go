@@ -2,6 +2,7 @@ package executors
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -27,9 +28,9 @@ type CurrentCmd struct {
 	Args  		 []string
 	Files 		 []string
 	RedirectType string
-	Stderr 		 *os.File
-	Stdout 		 *os.File
-	Stdin		 *os.File
+    Stdin  		 io.Reader
+    Stdout 		 io.Writer
+    Stderr 		 io.Writer
 	Flag		 int
 }
 
@@ -84,18 +85,31 @@ func CheckIfBuiltinCmd(cmd string) bool {
 	return true
 }
 
+func (cc *CurrentCmd) Run() error {
+	if CheckIfBuiltinCmd(cc.Cmd) {
+		return cc.ExecBuiltinCmd()
+	}
+
+	cmd, err := cc.BuildCmd()
+	if err != nil {
+		return err
+	}
+
+	return cmd.Run()
+}
+
 func (cc *CurrentCmd) BuildCmd() (*exec.Cmd, error) {
 	path := path.LookPath(cc.Cmd)
 	if path == "" {
 		return nil, fmt.Errorf("%s: command not found", cc.Cmd)
 	}
 
-	cmdForRun := exec.Command(cc.Cmd, cc.Args...)
-	cmdForRun.Stdin  = cc.Stdin
-	cmdForRun.Stdout = cc.Stdout
-	cmdForRun.Stderr = cc.Stderr
+	cmd := exec.Command(cc.Cmd, cc.Args...)
+	cmd.Stdin  = cc.Stdin
+	cmd.Stdout = cc.Stdout
+	cmd.Stderr = cc.Stderr
 
-	return cmdForRun, nil
+	return cmd, nil
 }
 
 func (cc *CurrentCmd) ExecOtherCommand() error {
@@ -107,6 +121,7 @@ func (cc *CurrentCmd) ExecOtherCommand() error {
 	cmdForRun := exec.Command(cc.Cmd, cc.Args...)
 	cmdForRun.Stdout = cc.Stdout
 	cmdForRun.Stderr = cc.Stderr
+	cmdForRun.Stdin  = cc.Stdin
 
 	if err := cmdForRun.Run(); err != nil {
 		return fmt.Errorf("%w", err)
@@ -119,8 +134,10 @@ func (cc *CurrentCmd) argsToString() string {
 	return strings.Join(cc.Args, " ")
 }
 
-func (cc *CurrentCmd) ExecBuiltinCmd() (output string, errOutput error) {
+func (cc *CurrentCmd) ExecBuiltinCmd() (errOutput error) {
 	argsStr := cc.argsToString()
+
+	output := ""
 
 	switch cc.Cmd {
 	case "cd":
@@ -155,5 +172,9 @@ func (cc *CurrentCmd) ExecBuiltinCmd() (output string, errOutput error) {
 		}
 	}
 
-	return output, errOutput
+	if output != "" {
+		_, errOutput = io.WriteString(cc.Stdout, output + "\n") // for echo -n do not work  
+	}
+
+	return errOutput
 }

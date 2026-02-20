@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"sync"
 
 	"github.com/chzyer/readline"
 	"github.com/codecrafters-io/shell-starter-go/internal/completer"
@@ -50,45 +51,58 @@ func main() {
 
 		cmds := executors.HandleInputToCmds(inputSliceCmds)
 
+		fmt.Printf("%#v\n", cmds)
+
 		if cmds.CountCmd == 2 { 
-			read, write, err := os.Pipe()
+
+			r, w, err := os.Pipe()
 			if err != nil {
 				continue // fmt.Fprintf(curCmd.Stderr, "%v\n", err)
 			}
 
-			cmds.Cmds[0].Stdout = write
-			cmds.Cmds[1].Stdin = read
+			cmds.Cmds[0].Stdout = w
+			cmds.Cmds[1].Stdin = r
 
-			leftExec, err := cmds.Cmds[0].BuildCmd()
-			if err != nil {
-				fmt.Fprintf(leftExec.Stderr, "%v\n", err)
-				continue
-			}
-			rightExec, err := cmds.Cmds[1].BuildCmd()
-			if err != nil {
-				fmt.Fprintf(leftExec.Stderr, "%v\n", err)
-				continue
-			}
-
-			isStarts := true
-			if err = leftExec.Start(); err != nil {
-				isStarts = false
-			}
-
-			if isStarts {
-				if err = rightExec.Start(); err != nil {
-					leftExec.Process.Kill()
-					isStarts = false
+			if executors.CheckIfBuiltinCmd(cmds.Cmds[1].Cmd) { // if right cmd dont read stdin
+				devNull, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
+				if err != nil {
+					w.Close()
+					r.Close()
+					continue
 				}
+
+				defer func () {
+					devNull.Close()
+				}()
+
+				cmds.Cmds[0].Stdout = devNull
 			}
 
-			read.Close()
-			write.Close()
+			var wg sync.WaitGroup
 
-			if isStarts {
-				leftExec.Wait()  // error
-				rightExec.Wait() // error
-			}
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				defer w.Close()
+				err := cmds.Cmds[0].Run()
+				if err != nil {
+					fmt.Fprintln(os.Stderr, err)
+				}
+			}()
+
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				defer r.Close()
+				err := cmds.Cmds[1].Run()
+				if err != nil {
+					fmt.Fprintln(os.Stderr, err)
+				}
+			}()
+
+			wg.Wait()
+
+
 		} else if cmds.CountCmd == 1 {
 			curCmd := cmds.Cmds[0]
 			if len(curCmd.Files) > 0 {
@@ -111,17 +125,9 @@ func main() {
 			}
 
 			if executors.CheckIfBuiltinCmd(curCmd.Cmd) {
-				output, err := curCmd.ExecBuiltinCmd()
+				err := curCmd.ExecBuiltinCmd()
 				if err != nil {
 					fmt.Fprintf(curCmd.Stderr, "%v\n", err)
-				}
-
-				if output != "" {
-					fmt.Fprintf(curCmd.Stdout,"%s\n", output)
-					if err != nil {
-						fmt.Fprintf(curCmd.Stderr, "%v\n", err)
-					}
-
 				}
 			} else {
 				err := curCmd.ExecOtherCommand()
