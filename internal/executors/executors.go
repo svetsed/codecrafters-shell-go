@@ -17,6 +17,11 @@ var builtinCmd = map[string]bool{
 	"cd": 	true,
 }
 
+type Cmds struct {
+	Cmds	 []*CurrentCmd
+	CountCmd int
+}
+
 type CurrentCmd struct {
 	Cmd			 string
 	Args  		 []string
@@ -24,16 +29,31 @@ type CurrentCmd struct {
 	RedirectType string
 	Stderr 		 *os.File
 	Stdout 		 *os.File
+	Stdin		 *os.File
 	Flag		 int
 }
 
-func HandleInputToStruct(inputSlice []string) *CurrentCmd {
+func HandleInputToCmds(inputCmdsSlice [][]string) *Cmds {
+	c := Cmds{
+		Cmds: make([]*CurrentCmd, 0, 2),
+	}
+
+	for _, cmd := range inputCmdsSlice {
+		c.Cmds = append(c.Cmds, handleInputToOneCmd(cmd))
+		c.CountCmd++
+	}
+
+	return &c
+}
+
+func handleInputToOneCmd(inputSlice []string) *CurrentCmd {
 	curCmd := CurrentCmd{
 		Cmd: inputSlice[0],
 		Args:  make([]string, 0, 4),
 		Files: make([]string, 0, 2),
 		Stderr: os.Stderr,
 		Stdout: os.Stdout,
+		Stdin: os.Stdin,
 	}
 
 	needWrite := false
@@ -62,6 +82,20 @@ func CheckIfBuiltinCmd(cmd string) bool {
 		return false
 	}
 	return true
+}
+
+func (cc *CurrentCmd) BuildCmd() (*exec.Cmd, error) {
+	path := path.LookPath(cc.Cmd)
+	if path == "" {
+		return nil, fmt.Errorf("%s: command not found", cc.Cmd)
+	}
+
+	cmdForRun := exec.Command(cc.Cmd, cc.Args...)
+	cmdForRun.Stdin  = cc.Stdin
+	cmdForRun.Stdout = cc.Stdout
+	cmdForRun.Stderr = cc.Stderr
+
+	return cmdForRun, nil
 }
 
 func (cc *CurrentCmd) ExecOtherCommand() error {

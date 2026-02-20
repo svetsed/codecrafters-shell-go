@@ -14,36 +14,48 @@ const (
 )
 
 type parser struct {
-    args    	  []string
+    args    	  [][]string
     current 	  strings.Builder
 	backslashSeen bool
 	state   	  state
 }
 
-func ParseInput(input string) ([]string, error) {
+func ParseInput(input string) ([][]string, error) {
 	if input == "" {
 		return nil, fmt.Errorf("empty input")
 	}
 
 	prsr := parser{
-		args: []string{},
+		args: make([][]string, 1),
 		current: strings.Builder{},
 		backslashSeen: false,
 		state: stateOutside,
 	}
 
+	indexCmd := 0
 	for _, ch := range input {
-		if prsr.state == stateOutside {
+		switch prsr.state {
+		case stateOutside:
 			if prsr.backslashSeen {
 				prsr.current.WriteRune(ch)
 				prsr.backslashSeen = false
 			} else if ch == '\\' {
 				prsr.backslashSeen = true
-			} else if ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' {
+			} else if ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' || ch == '|' {
 				if prsr.current.Len() > 0 {
-					prsr.args = append(prsr.args, prsr.current.String())
+					if indexCmd >= len(prsr.args) {
+						for i := len(prsr.args); i <= indexCmd; i++ {
+							prsr.args = append(prsr.args, []string{})
+						}
+					}
+					prsr.args[indexCmd] = append(prsr.args[indexCmd], prsr.current.String())
 					prsr.current.Reset()
 				}
+
+				if ch == '|' {
+					indexCmd++
+				}
+
 			} else if ch == '\'' {
 				prsr.state = stateSingleQuote
 			} else if ch == '"' {
@@ -51,13 +63,14 @@ func ParseInput(input string) ([]string, error) {
 			} else if ch != '\\' {
 				prsr.current.WriteRune(ch)
 			}
-		} else if prsr.state == stateSingleQuote {
+
+		case stateSingleQuote:
 			if ch == '\''{
 				prsr.state = stateOutside
 			} else {
 				prsr.current.WriteRune(ch)
 			}
-		} else if prsr.state == stateDoubleQuote {
+		case stateDoubleQuote:
 			if prsr.backslashSeen {
 				if ch == '\\' || ch == '"' { // $, `
 					prsr.current.WriteRune(ch)
@@ -79,7 +92,12 @@ func ParseInput(input string) ([]string, error) {
 	}
 
 	if prsr.current.Len() > 0 {
-		prsr.args = append(prsr.args, prsr.current.String())
+		if indexCmd >= len(prsr.args) {
+			for i := len(prsr.args); i <= indexCmd; i++ {
+				prsr.args = append(prsr.args, []string{})
+			}
+		}
+		prsr.args[indexCmd] = append(prsr.args[indexCmd], prsr.current.String())
 		prsr.current.Reset()
 	}
 

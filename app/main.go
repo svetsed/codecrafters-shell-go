@@ -38,57 +38,98 @@ func main() {
 			break
 		}
 
-		inputSlice, err := handlers.ParseInput(inputRaw)
+		inputSliceCmds, err := handlers.ParseInput(inputRaw)
 		// skip empty input
 		if err != nil {
 			continue
 		}
-
-		if inputSlice[0] == "exit" {
+		
+		if len(inputSliceCmds) == 1 && inputSliceCmds[0][0] == "exit" {
 			return
 		}
 
+		cmds := executors.HandleInputToCmds(inputSliceCmds)
 
-		curCmd := executors.HandleInputToStruct(inputSlice)
+		if cmds.CountCmd == 2 { 
+			read, write, err := os.Pipe()
+			if err != nil {
+				continue // fmt.Fprintf(curCmd.Stderr, "%v\n", err)
+			}
 
-		if len(curCmd.Files) > 0 {
-			for i, filename := range curCmd.Files {
-				tmp, err := os.OpenFile(filename, curCmd.Flag, 0766)
+			cmds.Cmds[0].Stdout = write
+			cmds.Cmds[1].Stdin = read
+
+			leftExec, err := cmds.Cmds[0].BuildCmd()
+			if err != nil {
+				fmt.Fprintf(leftExec.Stderr, "%v\n", err)
+				continue
+			}
+			rightExec, err := cmds.Cmds[1].BuildCmd()
+			if err != nil {
+				fmt.Fprintf(leftExec.Stderr, "%v\n", err)
+				continue
+			}
+
+			isStarts := true
+			if err = leftExec.Start(); err != nil {
+				isStarts = false
+			}
+
+			if isStarts {
+				if err = rightExec.Start(); err != nil {
+					leftExec.Process.Kill()
+					isStarts = false
+				}
+			}
+
+			read.Close()
+			write.Close()
+
+			if isStarts {
+				leftExec.Wait()  // error
+				rightExec.Wait() // error
+			}
+		} else if cmds.CountCmd == 1 {
+			curCmd := cmds.Cmds[0]
+			if len(curCmd.Files) > 0 {
+				for i, filename := range curCmd.Files {
+					tmp, err := os.OpenFile(filename, curCmd.Flag, 0766)
+					if err != nil {
+						fmt.Fprintf(curCmd.Stderr, "%v\n", err)
+					}
+
+					defer tmp.Close()
+
+					if i == len(curCmd.Files) - 1 {
+						if curCmd.RedirectType == "2>" || curCmd.RedirectType == "2>>" {
+							curCmd.Stderr = tmp
+						} else  if curCmd.RedirectType == ">" || curCmd.RedirectType == ">>" || curCmd.RedirectType == "1>" || curCmd.RedirectType == "1>>" {
+							curCmd.Stdout = tmp
+						} 
+					}
+				}
+			}
+
+			if executors.CheckIfBuiltinCmd(curCmd.Cmd) {
+				output, err := curCmd.ExecBuiltinCmd()
 				if err != nil {
 					fmt.Fprintf(curCmd.Stderr, "%v\n", err)
 				}
 
-				defer tmp.Close()
+				if output != "" {
+					fmt.Fprintf(curCmd.Stdout,"%s\n", output)
+					if err != nil {
+						fmt.Fprintf(curCmd.Stderr, "%v\n", err)
+					}
 
-				if i == len(curCmd.Files) - 1 {
-					if curCmd.RedirectType == "2>" || curCmd.RedirectType == "2>>" {
-						curCmd.Stderr = tmp
-					} else  if curCmd.RedirectType == ">" || curCmd.RedirectType == ">>" || curCmd.RedirectType == "1>" || curCmd.RedirectType == "1>>" {
-						curCmd.Stdout = tmp
-					} 
 				}
-			}
-		}
-
-		if executors.CheckIfBuiltinCmd(curCmd.Cmd) {
-			output, err := curCmd.ExecBuiltinCmd()
-			if err != nil {
-				fmt.Fprintf(curCmd.Stderr, "%v\n", err)
-			}
-
-			if output != "" {
-				fmt.Fprintf(curCmd.Stdout,"%s\n", output)
+			} else {
+				err := curCmd.ExecOtherCommand()
 				if err != nil {
-					fmt.Fprintf(curCmd.Stderr, "%v\n", err)
-				}
-
-			}
-		} else {
-			err := curCmd.ExecOtherCommand()
-			if err != nil {
-				var exitErr *exec.ExitError
-				if !errors.As(err, &exitErr) {
-					fmt.Fprintf(curCmd.Stderr, "%v\n", err)
+					var exitErr *exec.ExitError
+					if !errors.As(err, &exitErr) {
+						fmt.Fprintf(curCmd.Stderr, "%v\n", err)
+					}
 				}
 			}
 		}
