@@ -14,11 +14,12 @@ import (
 )
 
 var builtinCmd = map[string]bool{
-	"exit": true,
-	"type": true,
-	"echo": true,
-	"pwd":  true,
-	"cd": 	true,
+	"exit":    true,
+	"type":    true,
+	"echo":    true,
+	"pwd":     true,
+	"cd": 	   true,
+	"history": true,
 }
 
 type Cmds struct {
@@ -110,7 +111,6 @@ func (c *Cmds) CreatePipeline() (readers []*os.File, writers []*os.File, err err
 	return readers, writers, nil
 }
 
-// TODO check redirection
 func(c *Cmds) SetupCmdPipe(i int, readers, writers []*os.File, devNull *os.File) {
 	// if readers == nil || writers == nil || devNull == nil  || i < 0 {
 	// 	return fmt.Errorf("received incorrect data")
