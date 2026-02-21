@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"sync"
 
 	"github.com/chzyer/readline"
 	"github.com/codecrafters-io/shell-starter-go/internal/completer"
@@ -51,56 +50,8 @@ func main() {
 
 		cmds := executors.HandleInputToCmds(inputSliceCmds)
 
-		if cmds.CountCmd == 2 { 
-
-			r, w, err := os.Pipe()
-			if err != nil {
-				continue // fmt.Fprintf(curCmd.Stderr, "%v\n", err)
-			}
-
-			cmds.Cmds[0].Stdout = w
-			cmds.Cmds[1].Stdin = r
-
-			if executors.CheckIfBuiltinCmd(cmds.Cmds[1].Cmd) { // if right cmd dont read stdin
-				devNull, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
-				if err != nil {
-					w.Close()
-					r.Close()
-					continue
-				}
-
-				defer func () {
-					devNull.Close()
-				}()
-
-				cmds.Cmds[0].Stdout = devNull
-			}
-
-			var wg sync.WaitGroup
-
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				defer w.Close()
-				err := cmds.Cmds[0].Run()
-				if err != nil {
-					fmt.Fprintln(os.Stderr, err)
-				}
-			}()
-
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				defer r.Close()
-				err := cmds.Cmds[1].Run()
-				if err != nil {
-					fmt.Fprintln(os.Stderr, err)
-				}
-			}()
-
-			wg.Wait()
-
-
+		if cmds.CountCmd > 1 {
+			cmds.ExecPipeline()
 		} else if cmds.CountCmd == 1 {
 			curCmd := cmds.Cmds[0]
 			if len(curCmd.Files) > 0 {
