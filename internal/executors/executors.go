@@ -30,12 +30,13 @@ type Cmds struct {
 type CurrentCmd struct {
 	Cmd			 string
 	Args  		 []string
-	Files 		 []string
+	Files 		 []string   // save just filename
 	RedirectType string
     Stdin  		 io.Reader
     Stdout 		 io.Writer
     Stderr 		 io.Writer
-	Flag		 int
+	Flag		 int		// for openning file
+	filesToClose []*os.File
 }
 
 func HandleInputToCmds(inputCmdsSlice [][]string) *Cmds {
@@ -121,7 +122,9 @@ func(c *Cmds) SetupCmdPipe(i int, readers, writers []*os.File, devNull *os.File)
 		cmd.Stdin = readers[i]
 	}
 
-	if i < c.CountCmd - 1 {
+	if cmd.RedirectType == ">" || cmd.RedirectType == ">>" || cmd.RedirectType == "1>" || cmd.RedirectType == "1>>" {
+		writers[i].Close()
+	} else if i < c.CountCmd - 1 {
 		nextCmd := c.Cmds[i+1]
 		if CheckIfBuiltinCmd(nextCmd.Cmd) {
 			cmd.Stdout = devNull
@@ -132,8 +135,6 @@ func(c *Cmds) SetupCmdPipe(i int, readers, writers []*os.File, devNull *os.File)
 	} else {
 		cmd.Stdout = os.Stdout
 	}
-
-	cmd.Stderr = os.Stderr
 }
 
 func (c *Cmds) ExecPipeline() {
@@ -204,9 +205,9 @@ func (c *Cmds) ExecPipeline() {
 	}
 
 	go func() {
-			c.Wg.Wait()
-			close(errCh)
-		}()
+		c.Wg.Wait()
+		close(errCh)
+	}()
 
 	for err := range errCh {
 		var exitErr *exec.ExitError
@@ -214,6 +215,68 @@ func (c *Cmds) ExecPipeline() {
 			fmt.Fprintf(c.Cmds[err.i].Stderr, "%v\n", err.err)
 		}
 	}
+}
+
+func (cc *CurrentCmd) CorrectRedirectType() bool {
+	availRedType := map[string]bool{
+		">":   true,
+		">>":  true,
+		"1>":  true,
+		"1>>": true,
+		"2>":  true,
+		"2>>": true,
+	}
+
+	if _, exist := availRedType[cc.RedirectType]; exist {
+		return true
+	}
+
+	return false
+}
+
+func (cc *CurrentCmd) SetupRedirection() error {
+	if len(cc.Files) == 0 && cc.RedirectType == ""  {
+		return nil
+	}
+
+	if !cc.CorrectRedirectType() {
+		return fmt.Errorf("unknown redirect type: %s", cc.RedirectType)
+	}
+
+	files := make([]*os.File, 0, len(cc.Files))
+	for _, filename := range cc.Files {
+		f, err := os.OpenFile(filename, cc.Flag, 0766)
+		if err != nil {
+			for _, opened := range files {
+				opened.Close()
+			}
+			return fmt.Errorf("%v\n", err)
+		}
+		files = append(files, f)
+	}
+
+	lastFile := files[len(files)-1]
+
+	switch cc.RedirectType {
+	case "2>", "2>>":
+		cc.Stderr = lastFile
+	case ">", ">>", "1>", "1>>":
+		cc.Stdout = lastFile
+	}
+
+	cc.filesToClose = files[:len(files)-1]
+
+	return nil
+}
+
+func (cc *CurrentCmd) CloseFiles() {
+	if cc.filesToClose != nil {
+		for _, f := range cc.filesToClose {
+			f.Close()
+		}
+		cc.filesToClose = nil
+	}
+
 }
 
 func CheckIfBuiltinCmd(cmd string) bool {

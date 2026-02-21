@@ -50,28 +50,19 @@ func main() {
 
 		cmds := executors.HandleInputToCmds(inputSliceCmds)
 
+		for _, cmd := range cmds.Cmds {
+			if err := cmd.SetupRedirection(); err != nil {
+				fmt.Fprintf(cmd.Stderr, "%v\n", err)
+        		continue
+			}
+			defer cmd.CloseFiles()
+		}
+
 		if cmds.CountCmd > 1 {
 			cmds.ExecPipeline()
+
 		} else if cmds.CountCmd == 1 {
 			curCmd := cmds.Cmds[0]
-			if len(curCmd.Files) > 0 {
-				for i, filename := range curCmd.Files {
-					tmp, err := os.OpenFile(filename, curCmd.Flag, 0766)
-					if err != nil {
-						fmt.Fprintf(curCmd.Stderr, "%v\n", err)
-					}
-
-					defer tmp.Close()
-
-					if i == len(curCmd.Files) - 1 {
-						if curCmd.RedirectType == "2>" || curCmd.RedirectType == "2>>" {
-							curCmd.Stderr = tmp
-						} else  if curCmd.RedirectType == ">" || curCmd.RedirectType == ">>" || curCmd.RedirectType == "1>" || curCmd.RedirectType == "1>>" {
-							curCmd.Stdout = tmp
-						} 
-					}
-				}
-			}
 
 			if executors.CheckIfBuiltinCmd(curCmd.Cmd) {
 				err := curCmd.ExecBuiltinCmd()
