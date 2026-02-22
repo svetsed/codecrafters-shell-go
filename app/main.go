@@ -10,15 +10,26 @@ import (
 	"github.com/codecrafters-io/shell-starter-go/internal/completer"
 	"github.com/codecrafters-io/shell-starter-go/internal/executors"
 	"github.com/codecrafters-io/shell-starter-go/internal/handlers"
+	"github.com/codecrafters-io/shell-starter-go/internal/utils/history"
 )
 
 func main() {
+	historyFile, err :=  history.New("")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		return
+	}
+
+	defer historyFile.CloseHistory()
+
+	executors.HistoryFile = historyFile
+
 	rl, err := readline.NewEx(&readline.Config{
 		Prompt: "$ ",
 		AutoComplete: completer.NewCmdCompleter(),
 		InterruptPrompt: "^C",
 		EOFPrompt: "exit",
-		HistoryFile: executors.HistoryPath,
+		HistoryFile: historyFile.HistoryPath,
 		DisableAutoSaveHistory: true,
 	})
 
@@ -32,8 +43,7 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Error closing readline: %v\n", err)
 		}
 	}()
-	
-	lineCount := 0
+
 	for {
 		inputRaw, err := rl.Readline()
 		if err != nil {
@@ -41,9 +51,11 @@ func main() {
 			break
 		}
 
-		lineCount++
-		historyLine := fmt.Sprintf("    %d  %s", lineCount, inputRaw)
-		rl.SaveHistory(historyLine)
+		
+		if err := historyFile.SaveHistoryWithFormat(inputRaw); err != nil {
+			fmt.Fprintf(os.Stderr, "%v\n", err)
+			return
+		}
 
 
 		inputSliceCmds, err := handlers.ParseInput(inputRaw)
@@ -89,3 +101,4 @@ func main() {
 		}
 	}
 }
+

@@ -10,10 +10,11 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/codecrafters-io/shell-starter-go/internal/utils/history"
 	"github.com/codecrafters-io/shell-starter-go/internal/utils/path"
 )
 
-var HistoryPath = "./history.tmp"
+var HistoryFile *history.History
 
 var builtinCmd = map[string]bool{
 	"exit":    true,
@@ -25,9 +26,9 @@ var builtinCmd = map[string]bool{
 }
 
 type Cmds struct {
-	Cmds	 []*CurrentCmd
-	CountCmd int
-	Wg 		 sync.WaitGroup
+	Cmds	 	[]*CurrentCmd
+	CountCmd 	int
+	Wg 		 	sync.WaitGroup
 }
 
 type CurrentCmd struct {
@@ -373,17 +374,12 @@ func (cc *CurrentCmd) ExecBuiltinCmd() (errOutput error) {
 			output = path.PrintLookPath(argsStr, path.LookPath(argsStr))
 		}
 	case "history":
-		f, err := os.Open(HistoryPath)
+		tmp, err := HistoryFile.ReadHistory()
 		if err != nil {
 			errOutput = fmt.Errorf("%v", err)
 		}
 
-		data, err := io.ReadAll(f)
-		if err != nil {
-			errOutput = fmt.Errorf("%v", err)
-		}
-
-		output = string(data)
+		output = tmp
 	}
 
 	if output != "" {
