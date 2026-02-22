@@ -1,8 +1,0 @@
-README.md
-app
-codecrafters.yml
-file.txt
-go.mod
-go.sum
-internal
-your_program.sh

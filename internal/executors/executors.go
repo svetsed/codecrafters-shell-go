@@ -13,6 +13,8 @@ import (
 	"github.com/codecrafters-io/shell-starter-go/internal/utils/path"
 )
 
+var HistoryPath = "./history"
+
 var builtinCmd = map[string]bool{
 	"exit":    true,
 	"type":    true,
@@ -370,6 +372,18 @@ func (cc *CurrentCmd) ExecBuiltinCmd() (errOutput error) {
 		} else {
 			output = path.PrintLookPath(argsStr, path.LookPath(argsStr))
 		}
+	case "history":
+		f, err := os.Open(HistoryPath)
+		if err != nil {
+			errOutput = fmt.Errorf("%v", err)
+		}
+
+		data, err := io.ReadAll(f)
+		if err != nil {
+			errOutput = fmt.Errorf("%v", err)
+		}
+
+		output = string(data)
 	}
 
 	if output != "" {

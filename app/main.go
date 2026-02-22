@@ -18,6 +18,7 @@ func main() {
 		AutoComplete: completer.NewCmdCompleter(),
 		InterruptPrompt: "^C",
 		EOFPrompt: "exit",
+		HistoryFile: executors.HistoryPath,
 	})
 
 	if err != nil {
@@ -38,12 +39,18 @@ func main() {
 			break
 		}
 
+		// но он же уже куда-то это сохранил?
+		// rl.SetHistoryPath() оно для смены места?
+		//rl.SaveHistory(inputRaw) // а как работает по стрелочкам это
+		// что он делает после того как распознал эту стрелочку...
+
+
 		inputSliceCmds, err := handlers.ParseInput(inputRaw)
 		// skip empty input
 		if err != nil {
 			continue
 		}
-		
+
 		if len(inputSliceCmds) == 1 && inputSliceCmds[0][0] == "exit" {
 			return
 		}
