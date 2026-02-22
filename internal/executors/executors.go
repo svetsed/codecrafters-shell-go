@@ -13,7 +13,7 @@ import (
 	"github.com/codecrafters-io/shell-starter-go/internal/utils/path"
 )
 
-var HistoryPath = "./history"
+var HistoryPath = "./history.tmp"
 
 var builtinCmd = map[string]bool{
 	"exit":    true,
