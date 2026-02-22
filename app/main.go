@@ -19,6 +19,7 @@ func main() {
 		InterruptPrompt: "^C",
 		EOFPrompt: "exit",
 		HistoryFile: executors.HistoryPath,
+		DisableAutoSaveHistory: true,
 	})
 
 	if err != nil {
@@ -31,7 +32,8 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Error closing readline: %v\n", err)
 		}
 	}()
-
+	
+	lineCount := 0
 	for {
 		inputRaw, err := rl.Readline()
 		if err != nil {
@@ -39,10 +41,9 @@ func main() {
 			break
 		}
 
-		// но он же уже куда-то это сохранил?
-		// rl.SetHistoryPath() оно для смены места?
-		//rl.SaveHistory(inputRaw) // а как работает по стрелочкам это
-		// что он делает после того как распознал эту стрелочку...
+		lineCount++
+		historyLine := fmt.Sprintf("    %d  %s", lineCount, inputRaw)
+		rl.SaveHistory(historyLine)
 
 
 		inputSliceCmds, err := handlers.ParseInput(inputRaw)
