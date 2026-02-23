@@ -1,7 +1,6 @@
 package history
 
 import (
-	"bufio"
 	"fmt"
 	"io"
 	"os"
@@ -105,29 +104,19 @@ func (h *History) ReadHistory() (string, error) {
 }
 
 func (h *History) ReadHistoryWithFormat() (string, error) {
-	h.Mu.Lock()
-	defer h.Mu.Unlock()
-
-	if h.File == nil {
-		return "", fmt.Errorf("error reading history file: file don't exist")
-	}
-
-	_, err := h.File.Seek(0, 0)
+	fullStr, err := h.ReadHistory()
 	if err != nil {
-		return "", fmt.Errorf("error moving to start of file: %v", err)
+		return "", err
 	}
 
-	scanner := bufio.NewScanner(h.File)
-	buf := strings.Builder{}
+	sliceStr := strings.Split(fullStr, "\n")
+	if len(sliceStr) == 0 {
+		return "", nil
+	}
 
-	counter := 0
-	for scanner.Scan() {
-		line := scanner.Text()
-		if line == "" {
-			continue
-		}
-		counter++
-		buf.WriteString(fmt.Sprintf("    %d  %s\n", counter, line))
+	buf := strings.Builder{}
+	for i:= 0; i < len(sliceStr); i++ {
+		buf.WriteString(fmt.Sprintf("    %d  %s\n", i+1, sliceStr[i]))
 	}
 
 	output := strings.TrimRight(buf.String(), "\n\r\t")
