@@ -147,4 +147,29 @@ func(h *History) SaveHistoryWithFormat(line string) error {
 	return nil
 }
 
-// TODO Clear or Reset History
+func (h *History) ClearHistory() error {
+	h.Mu.Lock()
+	defer h.Mu.Unlock()
+
+	if h.File == nil {
+		return fmt.Errorf("error clearing history: file doesn't exist")
+	}
+
+	if err := h.File.Close(); err != nil {
+		return fmt.Errorf("error closing history file: %v", err)
+	}
+
+	if err := os.Remove(h.HistoryPath); err != nil {
+		return fmt.Errorf("error removing history file: %v", err)
+	}
+
+	f, err := os.OpenFile(h.HistoryPath, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0766)
+	    if err != nil {
+        return fmt.Errorf("error creating new history file: %v", err)
+    }
+
+	h.File = f
+	h.CounterLine = 0
+
+	return nil
+}
