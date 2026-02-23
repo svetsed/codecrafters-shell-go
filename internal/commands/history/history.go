@@ -66,15 +66,9 @@ func (h *History) ReadHistoryAndCut(n int) (string, error) {
 		i = total - n
 	}
 
-	copyN := n
 	buf := strings.Builder{}
 	for ; i < total; i++ {
-		copyN--
-		if copyN == 0 {
-			buf.WriteString(fmt.Sprintf("    %d  %s %d\n", i+1, sliceStr[i], n))
-		} else if copyN > 0 {
-			buf.WriteString(fmt.Sprintf("    %d  %s\n", i+1, sliceStr[i]))
-		}
+		buf.WriteString(fmt.Sprintf("    %d  %s\n", i+1, sliceStr[i]))
 	}
 
 	output := strings.TrimRight(buf.String(), "\n\r\t")
