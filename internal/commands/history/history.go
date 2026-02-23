@@ -178,3 +178,23 @@ func (h *History) ClearHistory() error {
 
 	return nil
 }
+
+
+func (h *History) RemoveHistory() error {
+	h.Mu.Lock()
+	defer h.Mu.Unlock()
+
+	if h.File == nil {
+		return fmt.Errorf("error clearing history: file doesn't exist")
+	}
+
+	if err := h.File.Close(); err != nil {
+		return fmt.Errorf("error closing history file: %v", err)
+	}
+
+	if err := os.Remove(h.HistoryPath); err != nil {
+		return fmt.Errorf("error removing history file: %v", err)
+	}
+	
+	return nil
+}

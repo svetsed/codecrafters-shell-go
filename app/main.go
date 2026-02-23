@@ -20,8 +20,7 @@ func main() {
 		return
 	}
 
-	defer historyFile.CloseHistory()
-	defer historyFile.ClearHistory()
+	defer historyFile.RemoveHistory()
 
 	executors.HistoryFile = historyFile
 
