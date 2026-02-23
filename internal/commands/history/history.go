@@ -15,19 +15,25 @@ type History struct {
 }
 
 func New(path string) (*History, error) {
+
 	hp := History{}
 	if path == "" {
-		hp.HistoryPath = "./history.tmp"
+		tmpFile, err := os.CreateTemp("", "history-*.tmp")
+		if err != nil {
+			return nil, fmt.Errorf("error creating temp file: %v", err)
+		}
+		hp.HistoryPath = tmpFile.Name()
+		hp.File = tmpFile
 	} else {
 		hp.HistoryPath = path
-	}
 
-	f, err := os.OpenFile(hp.HistoryPath, os.O_CREATE | os.O_APPEND | os.O_RDWR, 0766)
-	if err != nil {
-		return nil, fmt.Errorf("error opening history file: %s: %v", hp.HistoryPath, err)
-	}
+		f, err := os.OpenFile(hp.HistoryPath, os.O_CREATE | os.O_APPEND | os.O_RDWR, 0766)
+		if err != nil {
+			return nil, fmt.Errorf("error opening history file: %s: %v", hp.HistoryPath, err)
+		}
 
-	hp.File = f
+		hp.File = f
+	}
 
 	return &hp, nil
 }
@@ -195,6 +201,6 @@ func (h *History) RemoveHistory() error {
 	if err := os.Remove(h.HistoryPath); err != nil {
 		return fmt.Errorf("error removing history file: %v", err)
 	}
-	
+
 	return nil
 }
