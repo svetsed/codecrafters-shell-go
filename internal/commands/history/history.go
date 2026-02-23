@@ -2,7 +2,6 @@ package history
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"strings"
 	"sync"
@@ -84,19 +83,25 @@ func (h *History) ReadHistory() (string, error) {
 		return "", fmt.Errorf("error reading history file: file don't exist")
 	}
 
-	fileInfo, err := h.File.Stat()
+
+	data, err := os.ReadFile(h.HistoryPath)
 	if err != nil {
-        return "", fmt.Errorf("error getting file info: %v", err)
-    }
-
-	buffer := make([]byte, fileInfo.Size())
-
-	n, err := h.File.ReadAt(buffer, 0)
-	if err != nil && err != io.EOF {
-		return "", fmt.Errorf("error reading file: %v", err)
+		return "", fmt.Errorf("error reading history file: %v", err)
 	}
 
-	content := string(buffer[:n])
+	// fileInfo, err := h.File.Stat()
+	// if err != nil {
+    //     return "", fmt.Errorf("error getting file info: %v", err)
+    // }
+
+	// buffer := make([]byte, fileInfo.Size())
+
+	// n, err := h.File.ReadAt(buffer, 0)
+	// if err != nil && err != io.EOF {
+	// 	return "", fmt.Errorf("error reading file: %v", err)
+	// }
+
+	content := string(data)
 
 	content = strings.TrimRight(content, "\n\r\t")
 
