@@ -1,6 +1,7 @@
 package history
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"os"
@@ -42,6 +43,46 @@ func (h *History) CloseHistory() error {
 	return nil
 }
 
+func (h *History) ReadHistoryAndCut(n int) (string, error) {
+	if n < 0 {
+		return "", fmt.Errorf("invalid number")
+	}
+
+	fullStr, err := h.ReadHistory()
+	if err != nil {
+		return "", err
+	}
+
+	sliceStr := strings.Split(fullStr, "\n")
+	if len(sliceStr) == 0 {
+		return "", nil
+	}
+
+	total := len(sliceStr)
+	i := 0
+	if n >= total {
+		i = 0
+	} else {
+		i = total - n
+	}
+
+	copyN := n
+	buf := strings.Builder{}
+	for ; i < total; i++ {
+		copyN--
+		if copyN == 0 {
+			buf.WriteString(fmt.Sprintf("    %d  %s %d\n", i+1, sliceStr[i], n))
+		} else if copyN > 0 {
+			buf.WriteString(fmt.Sprintf("    %d  %s\n", i+1, sliceStr[i]))
+		}
+	}
+
+	output := strings.TrimRight(buf.String(), "\n\r\t")
+
+	return output, nil
+}
+
+
 func (h *History) ReadHistory() (string, error) {
 	h.Mu.RLock()
 	defer h.Mu.RUnlock()
@@ -69,6 +110,37 @@ func (h *History) ReadHistory() (string, error) {
 	return content, nil	
 }
 
+func (h *History) ReadHistoryWithFormat() (string, error) {
+	h.Mu.Lock()
+	defer h.Mu.Unlock()
+
+	if h.File == nil {
+		return "", fmt.Errorf("error reading history file: file don't exist")
+	}
+
+	_, err := h.File.Seek(0, 0)
+	if err != nil {
+		return "", fmt.Errorf("error moving to start of file: %v", err)
+	}
+
+	scanner := bufio.NewScanner(h.File)
+	buf := strings.Builder{}
+
+	counter := 0
+	for scanner.Scan() {
+		line := scanner.Text()
+		if line == "" {
+			continue
+		}
+		counter++
+		buf.WriteString(fmt.Sprintf("    %d  %s\n", counter, line))
+	}
+
+	output := strings.TrimRight(buf.String(), "\n\r\t")
+
+	return output, nil
+}
+
 func(h *History) SaveHistoryWithFormat(line string) error {
 	h.Mu.Lock()
 	defer h.Mu.Unlock()
@@ -91,3 +163,5 @@ func(h *History) SaveHistoryWithFormat(line string) error {
 
 	return nil
 }
+
+// TODO Clear or Reset History

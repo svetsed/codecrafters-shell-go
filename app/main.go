@@ -7,20 +7,20 @@ import (
 	"os/exec"
 
 	"github.com/chzyer/readline"
+	"github.com/codecrafters-io/shell-starter-go/internal/commands/history"
 	"github.com/codecrafters-io/shell-starter-go/internal/completer"
 	"github.com/codecrafters-io/shell-starter-go/internal/executors"
 	"github.com/codecrafters-io/shell-starter-go/internal/handlers"
-	"github.com/codecrafters-io/shell-starter-go/internal/utils/history"
 )
 
 func main() {
-	historyFile, err :=  history.New("")
+	historyFile, err := history.New("")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		return
 	}
 
-	defer historyFile.CloseHistory()
+	// defer historyFile.CloseHistory()
 
 	executors.HistoryFile = historyFile
 
@@ -50,13 +50,20 @@ func main() {
 			// io.EOF (Ctrl+D) / readline.ErrInterrupt (Ctrl+C)
 			break
 		}
-
 		
-		if err := historyFile.SaveHistoryWithFormat(inputRaw); err != nil {
+
+		historyFile.Mu.Lock()
+		if err := rl.SaveHistory(inputRaw); err != nil {
 			fmt.Fprintf(os.Stderr, "%v\n", err)
+			historyFile.Mu.Unlock()
 			return
 		}
 
+		if inputRaw != "" {
+			historyFile.CounterLine++
+		}
+		historyFile.Mu.Unlock()
+		
 
 		inputSliceCmds, err := handlers.ParseInput(inputRaw)
 		// skip empty input

@@ -7,10 +7,11 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"sync"
 
-	"github.com/codecrafters-io/shell-starter-go/internal/utils/history"
+	"github.com/codecrafters-io/shell-starter-go/internal/commands/history"
 	"github.com/codecrafters-io/shell-starter-go/internal/utils/path"
 )
 
@@ -374,12 +375,26 @@ func (cc *CurrentCmd) ExecBuiltinCmd() (errOutput error) {
 			output = path.PrintLookPath(argsStr, path.LookPath(argsStr))
 		}
 	case "history":
-		tmp, err := HistoryFile.ReadHistory()
-		if err != nil {
-			errOutput = fmt.Errorf("%v", err)
+		if len(cc.Args) >= 1 {
+			n, err := strconv.Atoi(cc.Args[0])
+			if err != nil {
+				errOutput = fmt.Errorf("%v", err)
+			} else {
+				tmp, err := HistoryFile.ReadHistoryAndCut(n)
+				if err != nil {
+					errOutput = fmt.Errorf("%v", err)
+				} else {
+					output = tmp
+				}
+			}
+		} else {
+			tmp, err := HistoryFile.ReadHistoryWithFormat()
+			if err != nil {
+				errOutput = fmt.Errorf("%v", err)
+			} else {
+				output = tmp
+			}
 		}
-
-		output = tmp
 	}
 
 	if output != "" {
