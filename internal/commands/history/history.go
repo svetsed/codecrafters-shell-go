@@ -23,6 +23,7 @@ type History struct {
 }
 
 type Walk struct {
+	MuWalk	sync.RWMutex
 	Current *HistoryItem
 	InESC   bool
 	Buf     []rune
@@ -79,7 +80,10 @@ func (h *History) PushBackOneLine(line string) {
 	}
 
 	h.Counter++
+
+	h.Walk.MuWalk.Lock()
 	h.Walk.Current = h.Tail
+	h.Walk.MuWalk.Unlock()
 }
 
 func (h *History) PushBack(lines string) {
@@ -260,8 +264,8 @@ func (h *History) WalkByHistory(line []rune, pos int, key rune) (newLine []rune,
 }
 
 func (h *History) handleUp() (newLine []rune, newPos int, ok bool) {
-	h.Mu.Lock()
-	defer h.Mu.Unlock()
+	h.Walk.MuWalk.Lock()
+	defer h.Walk.MuWalk.Unlock()
 	if h.Current != nil {
 		line := []rune(h.Current.Line)
 		if h.Current.Prev != nil {
@@ -270,13 +274,12 @@ func (h *History) handleUp() (newLine []rune, newPos int, ok bool) {
 		return line, len(line), true
 	}
 
-	// fmt.Print("\a")
 	return nil, 0, false
 }
 
 func (h *History) handleDown() (newLine []rune, newPos int, ok bool) {
-	h.Mu.Lock()
-	defer h.Mu.Unlock()
+	h.Walk.MuWalk.Lock()
+	defer h.Walk.MuWalk.Unlock()
 	if h.Current != nil {
 		if h.Current.Next != nil {
 			h.Current = h.Current.Next
@@ -287,9 +290,6 @@ func (h *History) handleDown() (newLine []rune, newPos int, ok bool) {
 		}
 	}
 
-
-
-	// fmt.Print("\a")
 	return nil, 0, false
 }
 
