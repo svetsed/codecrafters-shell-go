@@ -1,2 +1,0 @@
-echo hellonecho world
-ffffff

@@ -383,7 +383,7 @@ func (cc *CurrentCmd) ExecBuiltinCmd() (errOutput error) {
 			}
 				output = tmp
 		} else {
-			tmp := History.ReadFromHead()
+			tmp := History.ReadFromHeadWithFormat()
 			output = tmp
 		}
 	}
@@ -398,15 +398,33 @@ func (cc *CurrentCmd) ExecBuiltinCmd() (errOutput error) {
 func HistoryCmdWithArgs(args []string) (string, error) {
 	n, err := strconv.Atoi(args[0])
 	if err != nil {
-		if args[0] == "-r" {
+		if len(args) < 2 {
+			return "", fmt.Errorf("incorrect input: missing file")
+		}
+		switch args[0] {
+		case "-r":
 			data, err := os.ReadFile(args[1])
 			if err != nil {
 				return "", err
 			}
-
 			History.PushBack(string(data))
-		
-		} else {
+		case "-w":
+			f, err := os.OpenFile(args[1], os.O_CREATE | os.O_RDWR, 0766)
+			if err != nil {
+				return "", fmt.Errorf("could not open file")
+			}
+			defer f.Close()
+
+			sliceLines := History.ReadFromHead()
+			if sliceLines == nil {
+				return "", nil
+			}
+
+			for _, line := range sliceLines {
+				f.WriteString(line + "\n")
+			}
+
+		default:
 			return "", fmt.Errorf("unknown args")
 		}
 	} else {

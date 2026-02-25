@@ -108,25 +108,44 @@ func (h *History) Back() (string, bool) {
 	return h.Tail.Line, true
 }
 
-func (h *History) ReadFromHead() string {
+func (h *History) ReadFromHead() []string {
 	h.Mu.RLock()
 	defer h.Mu.RUnlock()
 
 	if h.Head == nil {
+		return nil
+	}
+
+	sliceLines := make([]string, 0, 1)
+
+	if h.Head.Next == nil {
+		sliceLines = append(sliceLines, h.Head.Line)
+	}
+
+
+	current := h.Head
+	for current != nil {
+		sliceLines = append(sliceLines, current.Line)
+		current = current.Next
+	}
+
+	return sliceLines
+}
+
+func (h *History) ReadFromHeadWithFormat() string {
+	sliceLines := h.ReadFromHead()
+	if sliceLines == nil {
 		return ""
 	}
 
-	if h.Head.Next == nil {
-		return fmt.Sprintf("    %d  %s", 1, h.Head.Line)
-	}
+	return h.PrintFromHeadWithFormat(sliceLines)
+}
 
+func (h *History) PrintFromHeadWithFormat(sliceLines []string) string {
 	buf := strings.Builder{}
-	current := h.Head
-	i := 0
-	for current != nil {
+	for i, line := range sliceLines {
 		i++
-		buf.WriteString(fmt.Sprintf("    %d  %s\n", i, current.Line))
-		current = current.Next
+		buf.WriteString(fmt.Sprintf("    %d  %s\n", i, line))
 	}
 
 	return strings.TrimRight(buf.String(), "\n\r\t")
@@ -166,7 +185,7 @@ func (h *History) ReadFromTailLastN(n int) (string, error) {
 
 	if n >= h.Counter  {
 		h.Mu.RUnlock()
-		return h.ReadFromHead(), nil
+		return h.ReadFromHeadWithFormat(), nil
 	}
 
 	defer h.Mu.RUnlock()
