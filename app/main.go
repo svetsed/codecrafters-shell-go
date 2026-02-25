@@ -25,7 +25,6 @@ func main() {
 		AutoComplete: completer.NewCmdCompleter(),
 		InterruptPrompt: "^C",
 		EOFPrompt: "exit",
-		// DisableAutoSaveHistory: true,
 		Listener: readline.FuncListener(history.WalkByHistory),
 	})
 

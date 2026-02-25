@@ -23,18 +23,11 @@ type History struct {
 }
 
 type Walk struct {
-	MuWalk	sync.RWMutex
 	Current *HistoryItem
-	InESC   bool
-	Buf     []rune
 }
 
 func NewHistory() History {
-	return History{
-		Walk: Walk {
-			Buf: make([]rune, 0),
-		},
-	}
+	return History{}
 }
 
 func (h *History) PushFrontOneLine(line string) {
@@ -80,10 +73,7 @@ func (h *History) PushBackOneLine(line string) {
 	}
 
 	h.Counter++
-
-	h.Walk.MuWalk.Lock()
-	h.Walk.Current = h.Tail
-	h.Walk.MuWalk.Unlock()
+	h.Walk.Current = nil
 }
 
 func (h *History) PushBack(lines string) {
@@ -226,66 +216,45 @@ func (h *History) WalkByHistory(line []rune, pos int, key rune) (newLine []rune,
 	default:
 		return nil, 0, false
 	}
-	
-	
-	// if h.Walk.InESC {
-	// 	h.Walk.Buf = append(h.Walk.Buf, key)
-
-	// 	if len(h.Walk.Buf) == 3  && h.Walk.Buf[0]== readline.CharEsc && h.Walk.Buf[1] == readline.CharEscapeEx {
-	// 		h.Walk.InESC = false
-	// 		lastCh := h.Walk.Buf[2]
-	// 		h.Walk.Buf = make([]rune, 0)
-	// 		switch lastCh {
-	// 		case 'A':
-	// 			return h.handleUp()
-	// 		case 'B':
-	// 			return h.handleDown()
-	// 		default:
-	// 			return nil, 0, false
-	// 		}
-	// 	}
-
-	// 	if len(h.Walk.Buf) > 3 || (len(h.Walk.Buf) == 2 && h.Walk.Buf[1] != readline.CharEscapeEx) {
-	// 		h.Walk.InESC = false
-	// 		h.Walk.Buf = make([]rune, 0)
-	// 		return nil, 0, false
-	// 	}
-
-	// 	return line, pos, true
-	// }
-	
-	// if key == readline.CharEsc && !h.Walk.InESC {
-	// 	h.Walk.InESC = true
-	// 	h.Walk.Buf = append(h.Walk.Buf, key)
-	// 	return line, pos, true
-	// }
-
-	// return nil, 0, false
 }
 
 func (h *History) handleUp() (newLine []rune, newPos int, ok bool) {
-	h.Walk.MuWalk.Lock()
-	defer h.Walk.MuWalk.Unlock()
+	h.Mu.Lock()
+	defer h.Mu.Unlock()
+
+	if h.Current == nil {
+		h.Current = h.Tail
+		if h.Current != nil {
+			line := []rune(h.Current.Line)
+			return line, len(line), true
+		}
+	}
+
 	if h.Current != nil {
-		line := []rune(h.Current.Line)
 		if h.Current.Prev != nil {
 			h.Current = h.Current.Prev
+			line := []rune(h.Current.Line)
+			return line, len(line), true
 		}
-		return line, len(line), true
 	}
 
 	return nil, 0, false
 }
 
 func (h *History) handleDown() (newLine []rune, newPos int, ok bool) {
-	h.Walk.MuWalk.Lock()
-	defer h.Walk.MuWalk.Unlock()
+	h.Mu.Lock()
+	defer h.Mu.Unlock()
+	if h.Current == nil {
+		h.Current = h.Tail
+	}
+
 	if h.Current != nil {
 		if h.Current.Next != nil {
 			h.Current = h.Current.Next
 			line := []rune(h.Current.Line)
 			return line, len(line), true
 		} else {
+			h.Current = nil
 			return []rune(""), 0, true
 		}
 	}
@@ -293,233 +262,6 @@ func (h *History) handleDown() (newLine []rune, newPos int, ok bool) {
 	return nil, 0, false
 }
 
-
-
 // Todo
 // // delete First
 // // delete Last
-
-
-// type History struct {
-// 	HistoryPath string
-// 	Mu 			sync.RWMutex
-// 	File		*os.File
-// 	CounterLine int 
-// }
-
-// func New(path string) (*History, error) {
-
-// 	hp := History{}
-// 	if path == "" {
-// 		tmpFile, err := os.CreateTemp("", "history-*.tmp")
-// 		if err != nil {
-// 			return nil, fmt.Errorf("error creating temp file: %v", err)
-// 		}
-// 		hp.HistoryPath = tmpFile.Name()
-// 		hp.File = tmpFile
-// 	} else {
-// 		hp.HistoryPath = path
-
-// 		f, err := os.OpenFile(hp.HistoryPath, os.O_CREATE | os.O_APPEND | os.O_RDWR, 0766)
-// 		if err != nil {
-// 			return nil, fmt.Errorf("error opening history file: %s: %v", hp.HistoryPath, err)
-// 		}
-
-// 		hp.File = f
-// 	}
-
-// 	return &hp, nil
-// }
-
-// func (h *History) CloseHistory() error {
-// 	h.Mu.Lock()
-// 	defer h.Mu.Unlock()
-// 	if h.File != nil {
-// 		return h.File.Close()
-// 	}
-// 	return nil
-// }
-
-// func (h *History) ReadHistoryAndCut(n int) (string, error) {
-// 	if n < 0 {
-// 		return "", fmt.Errorf("invalid number")
-// 	}
-
-// 	fullStr, err := h.ReadHistory()
-// 	if err != nil {
-// 		return "", err
-// 	}
-
-// 	sliceStr := strings.Split(fullStr, "\n")
-// 	if len(sliceStr) == 0 {
-// 		return "", nil
-// 	}
-
-// 	total := len(sliceStr)
-// 	i := 0
-// 	if n >= total {
-// 		i = 0
-// 	} else {
-// 		i = total - n
-// 	}
-
-// 	buf := strings.Builder{}
-// 	for ; i < total; i++ {
-// 		buf.WriteString(fmt.Sprintf("    %d  %s\n", i+1, sliceStr[i]))
-// 	}
-
-// 	output := strings.TrimRight(buf.String(), "\n\r\t")
-
-// 	return output, nil
-// }
-
-
-// func (h *History) ReadHistory() (string, error) {
-// 	h.Mu.RLock()
-// 	defer h.Mu.RUnlock()
-
-// 	if h.File == nil {
-// 		return "", fmt.Errorf("error reading history file: file don't exist")
-// 	}
-
-
-// 	data, err := os.ReadFile(h.HistoryPath)
-// 	if err != nil {
-// 		return "", fmt.Errorf("error reading history file: %v", err)
-// 	}
-
-// 	// fileInfo, err := h.File.Stat()
-// 	// if err != nil {
-//     //     return "", fmt.Errorf("error getting file info: %v", err)
-//     // }
-
-// 	// buffer := make([]byte, fileInfo.Size())
-
-// 	// n, err := h.File.ReadAt(buffer, 0)
-// 	// if err != nil && err != io.EOF {
-// 	// 	return "", fmt.Errorf("error reading file: %v", err)
-// 	// }
-
-// 	content := string(data)
-
-// 	content = strings.TrimRight(content, "\n\r\t")
-
-// 	return content, nil	
-// }
-
-// func (h *History) ReadHistoryWithFormat() (string, error) {
-// 	fullStr, err := h.ReadHistory()
-// 	if err != nil {
-// 		return "", err
-// 	}
-
-// 	sliceStr := strings.Split(fullStr, "\n")
-// 	if len(sliceStr) == 0 {
-// 		return "", nil
-// 	}
-
-// 	buf := strings.Builder{}
-// 	for i:= 0; i < len(sliceStr); i++ {
-// 		buf.WriteString(fmt.Sprintf("    %d  %s\n", i+1, sliceStr[i]))
-// 	}
-
-// 	output := strings.TrimRight(buf.String(), "\n\r\t")
-
-// 	return output, nil
-// }
-
-// func(h *History) AddInHistory(pathToFile string) error {
-// 	if pathToFile == "" {
-// 		return nil
-// 	}
-
-// 	data, err := os.ReadFile(pathToFile)
-// 	if err != nil {
-// 		return fmt.Errorf("error reading file: %v", err)
-// 	}
-
-// 	if string(data) == "" {
-// 		return nil
-// 	}
-
-// 	h.Mu.Lock()
-// 	defer h.Mu.Unlock()
-
-// 	_, err = h.File.Write(data)
-// 	if err != nil {
-// 		return fmt.Errorf("error writing data in history file: %v", err)
-// 	}
-
-// 	// h.CounterLine++л
-// 	return nil
-// }
-
-// func(h *History) SaveHistoryWithFormat(line string) error {
-// 	h.Mu.Lock()
-// 	defer h.Mu.Unlock()
-
-// 	if line == "" {
-// 		return nil
-// 	}
-
-// 	if h.File == nil {
-// 		return fmt.Errorf("error writing line in history file: file don't exist")
-// 	}
-
-// 	h.CounterLine++
-// 	newNistoryLine := fmt.Sprintf("    %d  %s\n", h.CounterLine, line)
-
-// 	_, err := h.File.WriteString(newNistoryLine)
-// 	if err != nil {
-// 		return fmt.Errorf("error writing line in history file: %v", err)
-// 	}
-
-// 	return nil
-// }
-
-// func (h *History) ClearHistory() error {
-// 	h.Mu.Lock()
-// 	defer h.Mu.Unlock()
-
-// 	if h.File == nil {
-// 		return fmt.Errorf("error clearing history: file doesn't exist")
-// 	}
-
-// 	if err := h.File.Close(); err != nil {
-// 		return fmt.Errorf("error closing history file: %v", err)
-// 	}
-
-// 	if err := os.Remove(h.HistoryPath); err != nil {
-// 		return fmt.Errorf("error removing history file: %v", err)
-// 	}
-
-// 	f, err := os.OpenFile(h.HistoryPath, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0766)
-// 	    if err != nil {
-//         return fmt.Errorf("error creating new history file: %v", err)
-//     }
-
-// 	h.File = f
-// 	h.CounterLine = 0
-
-// 	return nil
-// }
-
-
-// func (h *History) RemoveHistory() error {
-// 	h.Mu.Lock()
-// 	defer h.Mu.Unlock()
-
-// 	if h.File == nil {
-// 		return fmt.Errorf("error clearing history: file doesn't exist")
-// 	}
-
-// 	if err := h.File.Close(); err != nil {
-// 		return fmt.Errorf("error closing history file: %v", err)
-// 	}
-
-// 	if err := os.Remove(h.HistoryPath); err != nil {
-// 		return fmt.Errorf("error removing history file: %v", err)
-// 	}
-
-// 	return nil
-// }
