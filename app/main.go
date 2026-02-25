@@ -13,24 +13,20 @@ import (
 	"github.com/codecrafters-io/shell-starter-go/internal/handlers"
 )
 
+
+
 func main() {
-	historyFile, err := history.New("")
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-		return
-	}
+	history := history.NewHistory()
 
-	defer historyFile.RemoveHistory()
-
-	executors.HistoryFile = historyFile
+	executors.History = &history
 
 	rl, err := readline.NewEx(&readline.Config{
 		Prompt: "$ ",
 		AutoComplete: completer.NewCmdCompleter(),
 		InterruptPrompt: "^C",
 		EOFPrompt: "exit",
-		HistoryFile: historyFile.HistoryPath,
-		DisableAutoSaveHistory: true,
+		// DisableAutoSaveHistory: true,
+		Listener: readline.FuncListener(history.WalkByHistory),
 	})
 
 	if err != nil {
@@ -51,18 +47,11 @@ func main() {
 			break
 		}
 		
-
-		historyFile.Mu.Lock()
-		if err := rl.SaveHistory(inputRaw); err != nil {
-			fmt.Fprintf(os.Stderr, "%v\n", err)
-			historyFile.Mu.Unlock()
-			return
+		if inputRaw == "" {
+			continue
 		}
 
-		if inputRaw != "" {
-			historyFile.CounterLine++
-		}
-		historyFile.Mu.Unlock()
+		history.PushBackOneLine(inputRaw)
 		
 
 		inputSliceCmds, err := handlers.ParseInput(inputRaw)

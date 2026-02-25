@@ -15,7 +15,7 @@ import (
 	"github.com/codecrafters-io/shell-starter-go/internal/utils/path"
 )
 
-var HistoryFile *history.History
+var History *history.History
 
 var builtinCmd = map[string]bool{
 	"exit":    true,
@@ -349,23 +349,24 @@ func (cc *CurrentCmd) ExecBuiltinCmd() (errOutput error) {
 		if strings.HasPrefix(tmpArgStr, "~") {
 			homeDir, err := os.UserHomeDir()
 			if err != nil {
-				errOutput = fmt.Errorf("%s: %s: No such file or directory", cc.Cmd, argsStr)
+				return fmt.Errorf("%s: %s: No such file or directory", cc.Cmd, argsStr)
 			}
+
 			tmpArgStr = strings.Replace(tmpArgStr, "~", homeDir, 1)
 		}
 		if _, err := os.Stat(tmpArgStr); err != nil {
-			errOutput = fmt.Errorf("%s: %s: No such file or directory", cc.Cmd, argsStr)
-		} else {
-			if err = os.Chdir(tmpArgStr); err != nil {
-				errOutput = fmt.Errorf("%s: %s: No such file or directory", cc.Cmd, argsStr)
-			}
+			return fmt.Errorf("%s: %s: No such file or directory", cc.Cmd, argsStr)
+		}
+
+		if err := os.Chdir(tmpArgStr); err != nil {
+			return fmt.Errorf("%s: %s: No such file or directory", cc.Cmd, argsStr)
 		}
 	case "pwd":
-		if curDir, err := os.Getwd(); err == nil {
-			output = fmt.Sprintf("%s", curDir)
-		} else {
-			errOutput = fmt.Errorf("%w", err)
+		curDir, err := os.Getwd()
+		if err != nil {
+			return fmt.Errorf("%w", err)
 		}
+		output = fmt.Sprintf("%s", curDir)
 	case "echo":
 		output = fmt.Sprintf("%s", argsStr)
 	case "type":
@@ -376,24 +377,14 @@ func (cc *CurrentCmd) ExecBuiltinCmd() (errOutput error) {
 		}
 	case "history":
 		if len(cc.Args) >= 1 {
-			n, err := strconv.Atoi(cc.Args[0])
+			tmp, err := HistoryCmdWithArgs(cc.Args)
 			if err != nil {
-				errOutput = fmt.Errorf("%v", err)
-			} else {
-				tmp, err := HistoryFile.ReadHistoryAndCut(n)
-				if err != nil {
-					errOutput = fmt.Errorf("%v", err)
-				} else {
-					output = tmp
-				}
+				return fmt.Errorf("%v", err)
 			}
-		} else {
-			tmp, err := HistoryFile.ReadHistoryWithFormat()
-			if err != nil {
-				errOutput = fmt.Errorf("%v", err)
-			} else {
 				output = tmp
-			}
+		} else {
+			tmp := History.ReadFromHead()
+			output = tmp
 		}
 	}
 
@@ -403,3 +394,29 @@ func (cc *CurrentCmd) ExecBuiltinCmd() (errOutput error) {
 
 	return errOutput
 }
+
+func HistoryCmdWithArgs(args []string) (string, error) {
+	n, err := strconv.Atoi(args[0])
+	if err != nil {
+		if args[0] == "-r" {
+			data, err := os.ReadFile(args[1])
+			if err != nil {
+				return "", err
+			}
+
+			History.PushBack(string(data))
+		
+		} else {
+			return "", fmt.Errorf("unknown args")
+		}
+	} else {
+		tmp, err := History.ReadFromTailLastN(n)
+		if err != nil {
+			return "", err
+		}
+		
+		return tmp, nil
+	}
+
+	return "", nil
+} 
