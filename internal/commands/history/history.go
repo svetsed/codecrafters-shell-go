@@ -15,20 +15,19 @@ var (
 	NoNewRecords   = errors.New("no new records")
 )
 
-
-
 type HistoryItem struct {
-	Prev *HistoryItem
-	Next *HistoryItem
-	Line string
+	Prev 		*HistoryItem
+	Next 		*HistoryItem
+	Line 		string
+	IsNewRecord bool  		  // records from history mark as false(old record)
 }
 
 type History struct {
-	Head 			*HistoryItem
-	Tail 			*HistoryItem
-	Counter 		int			  // total number of records (not clear)
-	CountNewRecords int			  // cleared then written to file (history -a <>)
-	Mu 				sync.RWMutex
+	Head 				*HistoryItem
+	Tail 				*HistoryItem
+	Counter 			int			  // total number of records (not clear)
+	CountNewRecords 	int			  // cleared then written to file (history -a <>)
+	Mu 					sync.RWMutex
 	Walk
 }
 
@@ -40,13 +39,14 @@ func NewHistory() History {
 	return History{}
 }
 
-func (h *History) PushFrontOneLine(line string) {
+func (h *History) PushFrontOneLine(line string, isNewRecord bool) {
 	if line == "" {
 		return
 	}
 
 	newHead := &HistoryItem{
 		Line: line,
+		IsNewRecord: isNewRecord,
 	}
 
 	h.Mu.Lock()
@@ -63,25 +63,30 @@ func (h *History) PushFrontOneLine(line string) {
 	h.CountNewRecords++
 }
 
-func (h *History) PushFront(lines string) {
+func (h *History) PushFront(lines string, isNewRecord bool) int {
 	if lines == "" {
-		return
+		return 0
 	}
 
 	sliceLines := strings.Split(lines, "\n")
 
+	counter := 0
 	for _, line := range sliceLines {
-		h.PushFrontOneLine(line)
+		h.PushFrontOneLine(line, isNewRecord)
+		counter++
 	}
+
+	return counter
 }
 
-func (h *History) PushBackOneLine(line string) {
+func (h *History) PushBackOneLine(line string, isNewRecord bool) {
 	if line == "" {
 		return
 	}
 
 	newTail := &HistoryItem{
 		Line: line,
+		IsNewRecord: isNewRecord,
 	}
 
 	h.Mu.Lock()
@@ -100,16 +105,20 @@ func (h *History) PushBackOneLine(line string) {
 	h.Walk.Current = nil
 }
 
-func (h *History) PushBack(lines string) {
+func (h *History) PushBack(lines string, isNewRecord bool) int {
 	if lines == "" {
-		return
+		return 0
 	}
 
 	sliceLines := strings.Split(lines, "\n")
 
+	counter := 0
 	for _, line := range sliceLines {
-		h.PushBackOneLine(line)
+		h.PushBackOneLine(line, isNewRecord)
+		counter++
 	}
+
+	return counter
 }
 
 func (h *History) Front() (string, bool) {
@@ -152,6 +161,28 @@ func (h *History) ReadFromHead() []string {
 	current := h.Head
 	for current != nil {
 		sliceLines = append(sliceLines, current.Line)
+		current = current.Next
+	}
+
+	return sliceLines
+}
+
+func (h *History) FindAndReadNewRecords() []string {
+	h.Mu.Lock()
+	h.Mu.Unlock()
+
+	if h.Head == nil {
+		return nil
+	}
+
+	current := h.Head
+	sliceLines := make([]string, 0, 1)
+
+	for current != nil {
+		if current.IsNewRecord {
+			sliceLines = append(sliceLines, current.Line)
+		}
+
 		current = current.Next
 	}
 
@@ -343,7 +374,13 @@ func (h *History) ReadHistoryFromFile(filename string) error {
 	if err != nil {
 		return err
 	}
-	h.PushBack(string(data))
+
+	isNewRecord := true
+	if filename == os.Getenv("HISTFILE") {
+		isNewRecord = false
+	}
+
+	h.PushBack(string(data), isNewRecord)
 
 	return nil
 }
@@ -381,15 +418,23 @@ func (h *History) AppendHistoryToFile(filename string) error {
 	}
 	defer f.Close()
 
-	count := h.CheckCountNewRecords()
+	sliceLines := []string{}
 
-	if count == 0 {
-		return NoNewRecords
-	}
-	
-	sliceLines, err := h.ReadFromTailLastN(count)
-	if err != nil {
-		return err
+	if filename == os.Getenv("HISTFILE") {
+		sliceLines = h.FindAndReadNewRecords()
+	} else {
+		count := h.CheckCountNewRecords()
+
+		if count == 0 {
+			return NoNewRecords
+		}
+		
+		sliceLines, err = h.ReadFromTailLastN(count)
+		if err != nil {
+			return err
+		}
+
+		h.ClearCountNewRecords()
 	}
 
 	if sliceLines == nil {
@@ -399,8 +444,6 @@ func (h *History) AppendHistoryToFile(filename string) error {
 	for _, line := range sliceLines {
 		f.WriteString(line + "\n")
 	}
-
-	h.ClearCountNewRecords()
 
 	return nil
 }

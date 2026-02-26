@@ -60,7 +60,7 @@ func main() {
 			continue
 		}
 
-		history.PushBackOneLine(inputRaw)
+		history.PushBackOneLine(inputRaw, true)
 		
 
 		inputSliceCmds, err := handlers.ParseInput(inputRaw)
