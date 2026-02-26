@@ -169,7 +169,7 @@ func (h *History) ReadFromHead() []string {
 
 func (h *History) FindAndReadNewRecords() []string {
 	h.Mu.Lock()
-	h.Mu.Unlock()
+	defer h.Mu.Unlock()
 
 	if h.Head == nil {
 		return nil
