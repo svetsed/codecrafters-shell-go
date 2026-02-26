@@ -1,12 +1,21 @@
 package history
 
 import (
+	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 
 	"github.com/chzyer/readline"
 )
+
+var (
+	HistoryIsEmpty = errors.New("history is empty")
+	NoNewRecords   = errors.New("no new records")
+)
+
+
 
 type HistoryItem struct {
 	Prev *HistoryItem
@@ -326,6 +335,74 @@ func(h *History) CheckCountNewRecords() int {
 	h.Mu.Lock()
 	defer h.Mu.Unlock()
 	return h.CountNewRecords
+}
+
+// ReadHistoryFromFile reads history from file and append in the end of history.
+func (h *History) ReadHistoryFromFile(filename string) error {
+	data, err := os.ReadFile(filename)
+	if err != nil {
+		return err
+	}
+	h.PushBack(string(data))
+
+	return nil
+}
+
+// WriteHistoryToFIle writes history to file, overwriting its contents, if it was not empty.
+// Creates a file, if it does not exist.
+// Returns the error HistoryIsEmpty, if history is empty.
+func (h *History) WriteHistoryToFile(filename string) error {
+	f, err := os.OpenFile(filename, os.O_CREATE | os.O_RDWR, 0766)
+	if err != nil {
+		return fmt.Errorf("could not open file")
+	}
+	defer f.Close()
+
+	sliceLines := h.ReadFromHead()
+	if sliceLines == nil {
+		return HistoryIsEmpty
+	}
+
+	for _, line := range sliceLines {
+		f.WriteString(line + "\n")
+	}
+
+	return nil
+}
+
+// AppendHistoryToFile adds new records to the end of the file.
+// Creates a file, if it does not exist.
+// Returns the error NoNewRecords, if there are no new records.
+// Returns the error HistoryIsEmpty, if history is empty.
+func (h *History) AppendHistoryToFile(filename string) error {
+	f, err := os.OpenFile(filename, os.O_CREATE | os.O_APPEND | os.O_RDWR, 0766)
+	if err != nil {
+		return fmt.Errorf("could not open file")
+	}
+	defer f.Close()
+
+	count := h.CheckCountNewRecords()
+
+	if count == 0 {
+		return NoNewRecords
+	}
+	
+	sliceLines, err := h.ReadFromTailLastN(count)
+	if err != nil {
+		return err
+	}
+
+	if sliceLines == nil {
+		return HistoryIsEmpty
+	}
+
+	for _, line := range sliceLines {
+		f.WriteString(line + "\n")
+	}
+
+	h.ClearCountNewRecords()
+
+	return nil
 }
 
 // Todo

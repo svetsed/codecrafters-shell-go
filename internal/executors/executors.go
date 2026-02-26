@@ -403,54 +403,28 @@ func HistoryCmdWithArgs(args []string) (string, error) {
 		}
 		switch args[0] {
 		case "-r":
-			data, err := os.ReadFile(args[1])
+			err := History.ReadHistoryFromFile(args[1])
 			if err != nil {
 				return "", err
 			}
-			History.PushBack(string(data))
 		case "-w":
-			f, err := os.OpenFile(args[1], os.O_CREATE | os.O_RDWR, 0766)
+			err := History.WriteHistoryToFile(args[1])
 			if err != nil {
-				return "", fmt.Errorf("could not open file")
-			}
-			defer f.Close()
-
-			sliceLines := History.ReadFromHead()
-			if sliceLines == nil {
-				return "", nil
-			}
-
-			for _, line := range sliceLines {
-				f.WriteString(line + "\n")
+				if !errors.Is(err, history.HistoryIsEmpty) {
+					return "", err
+				} else {
+					return "", nil
+				}
 			}
 		case "-a":
-			f, err := os.OpenFile(args[1], os.O_CREATE | os.O_APPEND | os.O_RDWR, 0766)
+			err := History.AppendHistoryToFile(args[1])
 			if err != nil {
-				return "", fmt.Errorf("could not open file")
+				if !errors.Is(err, history.HistoryIsEmpty) && !errors.Is(err, history.NoNewRecords) {
+					return "", err
+				} else {
+					return "", nil
+				}
 			}
-			defer f.Close()
-
-			count := History.CheckCountNewRecords()
-
-			if count == 0 {
-				return "", nil
-			}
-			
-			sliceLines, err := History.ReadFromTailLastN(count)
-			if err != nil {
-				return "", err
-			}
-
-			if sliceLines == nil {
-				return "", nil
-			}
-
-			for _, line := range sliceLines {
-				f.WriteString(line + "\n")
-			}
-
-			History.ClearCountNewRecords()
-			
 		default:
 			return "", fmt.Errorf("unknown args")
 		}

@@ -18,6 +18,16 @@ import (
 func main() {
 	history := history.NewHistory()
 
+	historyFilename := os.Getenv("HISTFILE")
+	if historyFilename != "" {
+		err := history.ReadHistoryFromFile(historyFilename)
+		if err != nil {
+			return
+		}
+
+		defer history.AppendHistoryToFile(historyFilename)
+	}
+
 	executors.History = &history
 
 	rl, err := readline.NewEx(&readline.Config{
