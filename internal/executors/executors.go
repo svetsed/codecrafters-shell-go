@@ -383,7 +383,7 @@ func (cc *CurrentCmd) ExecBuiltinCmd() (errOutput error) {
 			}
 				output = tmp
 		} else {
-			tmp := History.ReadFromHeadWithFormat()
+			tmp := History.ReadHistoryWithFormat()
 			output = tmp
 		}
 	}
@@ -423,12 +423,39 @@ func HistoryCmdWithArgs(args []string) (string, error) {
 			for _, line := range sliceLines {
 				f.WriteString(line + "\n")
 			}
+		case "-a":
+			f, err := os.OpenFile(args[1], os.O_CREATE | os.O_APPEND | os.O_RDWR, 0766)
+			if err != nil {
+				return "", fmt.Errorf("could not open file")
+			}
+			defer f.Close()
 
+			count := History.CheckCountNewRecords()
+
+			if count == 0 {
+				return "", nil
+			}
+			
+			sliceLines, err := History.ReadFromTailLastN(count)
+			if err != nil {
+				return "", err
+			}
+
+			if sliceLines == nil {
+				return "", nil
+			}
+
+			for _, line := range sliceLines {
+				f.WriteString(line + "\n")
+			}
+
+			History.ClearCountNewRecords()
+			
 		default:
 			return "", fmt.Errorf("unknown args")
 		}
 	} else {
-		tmp, err := History.ReadFromTailLastN(n)
+		tmp, err := History.ReadHistoryLastNWithFormat(n)
 		if err != nil {
 			return "", err
 		}
@@ -437,4 +464,4 @@ func HistoryCmdWithArgs(args []string) (string, error) {
 	}
 
 	return "", nil
-} 
+}

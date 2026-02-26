@@ -75,7 +75,6 @@ func main() {
 
 		if cmds.CountCmd > 1 {
 			cmds.ExecPipeline()
-
 		} else if cmds.CountCmd == 1 {
 			curCmd := cmds.Cmds[0]
 

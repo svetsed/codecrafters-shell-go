@@ -15,10 +15,11 @@ type HistoryItem struct {
 }
 
 type History struct {
-	Head 	*HistoryItem
-	Tail 	*HistoryItem
-	Counter int
-	Mu 		sync.RWMutex
+	Head 			*HistoryItem
+	Tail 			*HistoryItem
+	Counter 		int			  // total number of records (not clear)
+	CountNewRecords int			  // cleared then written to file (history -a <>)
+	Mu 				sync.RWMutex
 	Walk
 }
 
@@ -50,6 +51,19 @@ func (h *History) PushFrontOneLine(line string) {
 		h.Head = newHead
 	}
 	h.Counter++
+	h.CountNewRecords++
+}
+
+func (h *History) PushFront(lines string) {
+	if lines == "" {
+		return
+	}
+
+	sliceLines := strings.Split(lines, "\n")
+
+	for _, line := range sliceLines {
+		h.PushFrontOneLine(line)
+	}
 }
 
 func (h *History) PushBackOneLine(line string) {
@@ -73,6 +87,7 @@ func (h *History) PushBackOneLine(line string) {
 	}
 
 	h.Counter++
+	h.CountNewRecords++
 	h.Walk.Current = nil
 }
 
@@ -108,6 +123,8 @@ func (h *History) Back() (string, bool) {
 	return h.Tail.Line, true
 }
 
+// ReadFromHead returns records from history in slice.
+// May return nil if history is empty. Don't forget to check.
 func (h *History) ReadFromHead() []string {
 	h.Mu.RLock()
 	defer h.Mu.RUnlock()
@@ -132,26 +149,94 @@ func (h *History) ReadFromHead() []string {
 	return sliceLines
 }
 
-func (h *History) ReadFromHeadWithFormat() string {
+// ReadHistoryWithFormat is a wrapper for output to return all entries in history of the format.
+func (h *History) ReadHistoryWithFormat() string {
 	sliceLines := h.ReadFromHead()
 	if sliceLines == nil {
 		return ""
 	}
 
-	return h.PrintFromHeadWithFormat(sliceLines)
+	return PrintHistoryWithFormatASC(sliceLines, 1)
 }
 
-func (h *History) PrintFromHeadWithFormat(sliceLines []string) string {
+// PrintHistoryWithFormatASC returns records in the format(without quotes): "    1  echo hello\n".
+func PrintHistoryWithFormatASC(sliceLines []string, i int) string {
 	buf := strings.Builder{}
-	for i, line := range sliceLines {
-		i++
+	for _, line := range sliceLines {
 		buf.WriteString(fmt.Sprintf("    %d  %s\n", i, line))
+		i++
 	}
 
 	return strings.TrimRight(buf.String(), "\n\r\t")
 }
 
-func (h *History) ReadFromTail() string {
+// ReadHistoryLastNWithFormat is a wrapper for output to return Last N entries in history of the format.
+func (h *History) ReadHistoryLastNWithFormat(n int) (string, error) {
+	sliceLines, err := h.ReadFromTailLastN(n)
+	if err != nil {
+		return "", err
+	}
+	if sliceLines == nil {
+		return "", err
+	}
+
+	i:= h.Counter - n + 1
+	return PrintHistoryWithFormatASC(sliceLines, i), nil
+} 
+
+// ReadFromTailLastN returns last n records from history in slice.
+// If N is greater than the total number of records, it will be called ReadFromHead.
+// May return nil if history is empty. Don't forget to check.
+func (h *History) ReadFromTailLastN(n int) ([]string, error) {
+	h.Mu.RLock()
+	if h.Tail == nil {
+		h.Mu.RUnlock()
+		return nil, nil
+	}
+
+	if n >= h.Counter  {
+		h.Mu.RUnlock()
+		return h.ReadFromHead(), nil
+	}
+
+	defer h.Mu.RUnlock()
+
+	if n < 0 {
+		return nil, fmt.Errorf("invalid n")
+	}
+
+	if n == 0 {
+		return nil, nil
+	}
+
+	sliceLines := make([]string, 0, 1)
+
+	if h.Tail.Prev == nil {
+		sliceLines = append(sliceLines, h.Tail.Line)
+		return sliceLines, nil
+	}
+
+	current := h.Tail
+	searchingElem := n - 1
+
+	for current != nil && searchingElem != 0 {
+		current = current.Prev
+		searchingElem--
+	}
+
+	if searchingElem != 0 {
+		return nil,  fmt.Errorf("element don't found")
+	}
+
+	for current != nil {
+		sliceLines = append(sliceLines, current.Line)
+		current = current.Next
+	}
+
+	return sliceLines, nil
+}
+
+func (h *History) ReadFromTailWithFormat() string {
 	h.Mu.RLock()
 	defer h.Mu.RUnlock()
 	if h.Tail == nil {
@@ -173,56 +258,6 @@ func (h *History) ReadFromTail() string {
 	}
 
 	return strings.TrimRight(buf.String(), "\n\r\t")
-}
-
-
-func (h *History) ReadFromTailLastN(n int) (string, error) {
-	h.Mu.RLock()
-	if h.Tail == nil {
-		h.Mu.RUnlock()
-		return "", nil
-	}
-
-	if n >= h.Counter  {
-		h.Mu.RUnlock()
-		return h.ReadFromHeadWithFormat(), nil
-	}
-
-	defer h.Mu.RUnlock()
-
-	if n < 0 {
-		return "", fmt.Errorf("invalid option")
-	}
-
-	if n == 0 {
-		return "", nil
-	}
-
-	if h.Tail.Prev == nil {
-		return fmt.Sprintf("    %d  %s\n", h.Counter, h.Tail.Line), nil
-	}
-
-	current := h.Tail
-	searchingElem := n - 1
-
-	for current != nil && searchingElem != 0 {
-		current = current.Prev
-		searchingElem--
-	}
-
-	if searchingElem != 0 {
-		return "",  fmt.Errorf("element don't found")
-	}
-
-	buf := strings.Builder{}
-	i := h.Counter - n + 1
-	for current != nil {
-		buf.WriteString(fmt.Sprintf("    %d  %s\n", i, current.Line))
-		current = current.Next
-		i++
-	}
-
-	return strings.TrimRight(buf.String(), "\n\r\t"), nil
 }
 
 func (h *History) WalkByHistory(line []rune, pos int, key rune) (newLine []rune, newPos int, ok bool) {
@@ -279,6 +314,18 @@ func (h *History) handleDown() (newLine []rune, newPos int, ok bool) {
 	}
 
 	return nil, 0, false
+}
+
+func(h *History) ClearCountNewRecords() {
+	h.Mu.Lock()
+	defer h.Mu.Unlock()
+	h.CountNewRecords = 0
+}
+
+func(h *History) CheckCountNewRecords() int {
+	h.Mu.Lock()
+	defer h.Mu.Unlock()
+	return h.CountNewRecords
 }
 
 // Todo

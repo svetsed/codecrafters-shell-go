@@ -1,0 +1,9 @@
+ 1969  history
+ 1970  go run app/main.go
+ 1971  codecrafters submit
+ 1972  historycodecrafters submit
+echo
+aaaaa
+helloy
+history -a ./file.txt
+history -a ./file.txt
