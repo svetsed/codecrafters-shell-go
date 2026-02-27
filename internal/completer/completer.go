@@ -17,7 +17,9 @@ type cmdCompleter struct {
 	tab 			int
 	builtins  		[]string
 	externals   	[]string
+	filesFromDir    []string
 	loadedExt		bool
+	searchCmd		bool
 }
 
 func NewCmdCompleter() *cmdCompleter {
@@ -25,6 +27,7 @@ func NewCmdCompleter() *cmdCompleter {
 		matches: []string{},
 		builtins: []string{"echo", "exit"},
 		externals: []string{},
+		filesFromDir: []string{},
 	}
 
 	return cc
@@ -70,6 +73,20 @@ func (cc *cmdCompleter) scanExternals() {
 
 func (cc *cmdCompleter) GetMatches() {
 	uniqMatches := make(map[string]bool)
+
+	if !cc.searchCmd {
+		for _, file := range cc.filesFromDir {
+			if strings.HasPrefix(file, cc.lastPrefix) {
+				if _, exist := uniqMatches[file]; !exist {
+					uniqMatches[file] = true
+					cc.matches = append(cc.matches, file)
+				}
+			}
+		}
+		
+		return
+	}
+		
 	for _, cmd := range cc.builtins {
 		if strings.HasPrefix(cmd, cc.lastPrefix) {
 			if _, exist := uniqMatches[cmd]; !exist {
@@ -108,18 +125,51 @@ func (cc *cmdCompleter) LongestCommonPrefix() []rune {
 	return firstStr
 }
 
+func (cc *cmdCompleter) SearchInCurrentDir(prefix string) {
+	curDir, _ := os.Getwd()
+	dirEntry, _ := os.ReadDir(curDir)
+	for _, d := range dirEntry {
+		if d.IsDir() {
+			continue
+		}
+		// if prefix != "" && strings.Contains(d.Name(), prefix) {}
+		cc.filesFromDir = append(cc.filesFromDir, d.Name())
+	}
+}
+
 func (cc *cmdCompleter) Do(line []rune, pos int) ([][]rune, int) {
 	lineStr := string(line[:pos])
-	lastSpace := strings.LastIndex(string(line[:pos]), " ")
-	var prefix string
-
-	if lastSpace == -1 { // no space -> getting line[:pos]
-		prefix = lineStr
-	} else {
-		prefix = string(line[lastSpace+1:pos])
+	
+	strForSearchSpace := lineStr
+	if strings.Contains(lineStr, "|") {
+		cmds := strings.Split(lineStr, "|")
+		if len(cmds) >= 2 {
+			strForSearchSpace = cmds[len(cmds)-1]
+		}
 	}
 
-	if prefix == "" {
+	var prefix string
+	cc.searchCmd = true
+
+	sliceLine := strings.Split(strForSearchSpace, " ")
+	if len(sliceLine) == 0 { // no space -> getting line[:pos]
+		prefix = lineStr
+	} else if len(sliceLine) >= 2 {
+		prefix = sliceLine[len(sliceLine)-1]
+		cc.searchCmd = false
+	} else if len(sliceLine) == 1 {
+		prefix = ""
+		cc.searchCmd = false
+	}
+
+	// lastSpace := strings.LastIndex(string(line[:pos]), " ")
+	// if lastSpace == -1 { 
+	// 	prefix = lineStr
+	// } else {
+	// 	prefix = string(line[lastSpace+1:pos])
+	// }
+
+	if prefix == "" && cc.searchCmd {
 		fmt.Print("\x07")
 		return nil, 0
 	}
@@ -134,9 +184,14 @@ func (cc *cmdCompleter) Do(line []rune, pos int) ([][]rune, int) {
 	cc.lastPrefix = prefix
 	cc.lenPrefixInRune = len([]rune(prefix))
 	cc.matches = []string{}
+	cc.filesFromDir = []string{}
 
-	if !cc.loadedExt {
+	if cc.searchCmd && !cc.loadedExt {
 		cc.scanExternals()
+	}
+
+	if !cc.searchCmd {
+		cc.SearchInCurrentDir(prefix)
 	}
 
 	cc.GetMatches()

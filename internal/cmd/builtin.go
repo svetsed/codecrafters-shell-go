@@ -25,6 +25,8 @@ func (cc *CurrentCmd) ExecBuiltinCmd() (errOutput error) {
 	output := ""
 
 	switch cc.Cmd {
+	case "exit":
+		return
 	case "cd":
 		tmpArgStr := argsStr
 		if strings.HasPrefix(tmpArgStr, "~") {
