@@ -7,10 +7,11 @@ import (
 	"os/exec"
 
 	"github.com/chzyer/readline"
-	"github.com/codecrafters-io/shell-starter-go/internal/commands/history"
 	"github.com/codecrafters-io/shell-starter-go/internal/completer"
-	"github.com/codecrafters-io/shell-starter-go/internal/executors"
-	"github.com/codecrafters-io/shell-starter-go/internal/handlers"
+	"github.com/codecrafters-io/shell-starter-go/internal/cmd"
+	"github.com/codecrafters-io/shell-starter-go/internal/cmd/commands"
+	"github.com/codecrafters-io/shell-starter-go/internal/history"
+	"github.com/codecrafters-io/shell-starter-go/internal/parser"
 )
 
 
@@ -28,7 +29,7 @@ func main() {
 		defer history.AppendHistoryToFile(historyFilename)
 	}
 
-	executors.History = &history
+	commands.History = &history
 
 	rl, err := readline.NewEx(&readline.Config{
 		Prompt: "$ ",
@@ -62,8 +63,7 @@ func main() {
 
 		history.PushBackOneLine(inputRaw, true)
 		
-
-		inputSliceCmds, err := handlers.ParseInput(inputRaw)
+		inputSliceCmds, err := parser.ParseInput(inputRaw)
 		// skip empty input
 		if err != nil {
 			continue
@@ -73,14 +73,14 @@ func main() {
 			return
 		}
 
-		cmds := executors.HandleInputToCmds(inputSliceCmds)
+		cmds := parser.HandleInputToCmds(inputSliceCmds)
 
-		for _, cmd := range cmds.Cmds {
-			if err := cmd.SetupRedirection(); err != nil {
-				fmt.Fprintf(cmd.Stderr, "%v\n", err)
+		for _, curCmd := range cmds.Cmds {
+			if err := curCmd.SetupRedirection(); err != nil {
+				fmt.Fprintf(curCmd.Stderr, "%v\n", err)
         		continue
 			}
-			defer cmd.CloseFiles()
+			defer curCmd.CloseFiles()
 		}
 
 		if cmds.CountCmd > 1 {
@@ -88,7 +88,7 @@ func main() {
 		} else if cmds.CountCmd == 1 {
 			curCmd := cmds.Cmds[0]
 
-			if executors.CheckIfBuiltinCmd(curCmd.Cmd) {
+			if cmd.CheckIfBuiltinCmd(curCmd.Cmd) {
 				err := curCmd.ExecBuiltinCmd()
 				if err != nil {
 					fmt.Fprintf(curCmd.Stderr, "%v\n", err)
@@ -105,4 +105,3 @@ func main() {
 		}
 	}
 }
-

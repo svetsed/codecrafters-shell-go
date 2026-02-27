@@ -11,13 +11,13 @@ import (
 )
 
 type cmdCompleter struct {
-	lastPrefix string
+	lastPrefix 		string
 	lenPrefixInRune int
-	matches	   []string
-	tab 		int
-	builtins  	[]string
-	externals   []string
-	loadedExt	bool
+	matches	   		[]string
+	tab 			int
+	builtins  		[]string
+	externals   	[]string
+	loadedExt		bool
 }
 
 func NewCmdCompleter() *cmdCompleter {
