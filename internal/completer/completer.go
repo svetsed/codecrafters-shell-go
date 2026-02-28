@@ -13,22 +13,27 @@ import (
 type cmdCompleter struct {
 	lastPrefix 		string
 	lenPrefixInRune int
-	matches	   		[]string
+	matches	   		[]Match
 	tab 			int	 	  // count tab
 	builtins  		[]string
 	externals   	[]string  // executable files founds in PATHs
-	filesFromDir    []string  // all files founds in current dir
-	searchingDir    string	  // not "" when the user includes a path
+	// matchesFromDir  []Match  // all files founds in current dir
+	searchDir    	string	  // not "" when the user includes a path
 	loadedExt		bool	  // flag for load externals just one in the session
 	searchCmd		bool	  // flag to determine where exactly we will look
 }
 
+type Match struct {
+	matchStr string
+	isDir 	 bool    // if dir = / else " " for single matches
+}
+
 func NewCmdCompleter() *cmdCompleter {
 	cc := &cmdCompleter{
-		matches: []string{},
+		matches: []Match{},
 		builtins: []string{"echo", "exit"},
 		externals: []string{},
-		filesFromDir: []string{},
+		// matchesFromDir: []Match{},
 	}
 
 	return cc
@@ -76,28 +81,13 @@ func (cc *cmdCompleter) scanExternals() {
 // GetMatches searches for unique matches with the prefix.
 func (cc *cmdCompleter) GetMatches() {
 	uniqMatches := make(map[string]bool)
-
-	// search argument
-	if !cc.searchCmd {
-		for _, file := range cc.filesFromDir {
-			if strings.HasPrefix(file, cc.lastPrefix) {
-				if _, exist := uniqMatches[file]; !exist {
-					uniqMatches[file] = true
-					cc.matches = append(cc.matches, file)
-				}
-			}
-		}
-		
-		return
-	}
 		
 	// search cmd
-
 	for _, cmd := range cc.builtins {
 		if strings.HasPrefix(cmd, cc.lastPrefix) {
 			if _, exist := uniqMatches[cmd]; !exist {
 				uniqMatches[cmd] = true
-				cc.matches = append(cc.matches, cmd)
+				cc.matches = append(cc.matches, Match{matchStr: cmd})
 			}
 
 		}
@@ -106,18 +96,18 @@ func (cc *cmdCompleter) GetMatches() {
 		if strings.HasPrefix(cmd, cc.lastPrefix) {
 			if _, exist := uniqMatches[cmd]; !exist {
 				uniqMatches[cmd] = true
-				cc.matches = append(cc.matches, cmd)
+				cc.matches = append(cc.matches, Match{matchStr: cmd})
 			}
 		}
 	}
 }
 // LongestCommonPrefix searches in matches longest common prefix.
 func (cc *cmdCompleter) LongestCommonPrefix() []rune {
-	firstStr := []rune(cc.matches[0])
+	firstStr := []rune(cc.matches[0].matchStr)
 
 	for i, ch := range firstStr {
 		for _, str := range cc.matches[1:] {
-			tmpStrInRune := []rune(str) 
+			tmpStrInRune := []rune(str.matchStr) 
 			if i >= len(tmpStrInRune) {
 				return firstStr[:i]
 			}
@@ -130,14 +120,14 @@ func (cc *cmdCompleter) LongestCommonPrefix() []rune {
 	return firstStr
 }
 
-func (cc *cmdCompleter) SearchInCurrentDir() {
+func (cc *cmdCompleter) SearchMatchInCurrentDir() {
 	curDir, err := os.Getwd()
 	if err != nil {
 		return
 	}
 
-	if cc.searchingDir != "" {
-		curDir = filepath.Join(curDir, cc.searchingDir)
+	if cc.searchDir != "" {
+		curDir = filepath.Join(curDir, cc.searchDir)
 	}
 
 	dirEntry, err := os.ReadDir(curDir)
@@ -145,19 +135,23 @@ func (cc *cmdCompleter) SearchInCurrentDir() {
 		return
 	}
 
+	uniqMatches := make(map[string]bool)
 	for _, d := range dirEntry {
-		if d.IsDir() {
-			continue
+		dName := d.Name()
+		if strings.HasPrefix(dName, cc.lastPrefix) {
+			if _, exist := uniqMatches[dName]; !exist {
+				uniqMatches[dName] = true
+				tmp := Match {
+					matchStr: dName,
+					isDir: d.IsDir(),
+				}
+				cc.matches = append(cc.matches, tmp)
+			}
 		}
-		// if prefix != "" && strings.Contains(d.Name(), cc.lastPrefix) {}
-		cc.filesFromDir = append(cc.filesFromDir, d.Name())
 	}
 }
 
-// Do implement AutoCompleter readline then user press TAb.
-func (cc *cmdCompleter) Do(line []rune, pos int) ([][]rune, int) {
-	lineStr := string(line[:pos])
-	
+func (cc *cmdCompleter) findPrefix(lineStr string) string {
 	// cmd1 a b | cmd2 a b | ...
 	strForSearchSpace := lineStr
 	if strings.Contains(lineStr, "|") {
@@ -183,10 +177,37 @@ func (cc *cmdCompleter) Do(line []rune, pos int) ([][]rune, int) {
 	if strings.Contains(prefix, string(os.PathSeparator)) {
 		lastSep := strings.LastIndex(prefix, string(os.PathSeparator))
 		if lastSep != -1 {
-			cc.searchingDir = prefix[:lastSep]
+			cc.searchDir = prefix[:lastSep]
 			prefix = prefix[lastSep+1:]
 		}
 	}
+
+	return prefix
+}
+
+func (cc *cmdCompleter) MatchesJoin(sep string) string {
+	if sep == "" {
+		sep = "  "
+	}
+
+	buf := strings.Builder{}
+	for _, match := range cc.matches {
+		buf.WriteString(match.matchStr + sep)
+	}
+	return buf.String()
+}
+
+func (cc *cmdCompleter) SortMatches() {
+	sort.Slice(cc.matches, func(i, j int) bool {
+		return cc.matches[i].matchStr < cc.matches[j].matchStr
+	})
+}
+
+// Do implement AutoCompleter readline then user press TAB.
+func (cc *cmdCompleter) Do(line []rune, pos int) ([][]rune, int) {
+	lineStr := string(line[:pos])
+	// search prefix
+	prefix := cc.findPrefix(lineStr)
 
 	// too many option
 	if prefix == "" && cc.searchCmd {
@@ -194,8 +215,9 @@ func (cc *cmdCompleter) Do(line []rune, pos int) ([][]rune, int) {
 		return nil, 0
 	}
 
+
 	if cc.lastPrefix == prefix && cc.tab == 1 {
-		fmt.Printf("\n%s\n", strings.Join(cc.matches, "  "))
+		fmt.Printf("\n%s\n", cc.MatchesJoin("  "))
 		fmt.Print("$ " + lineStr)
 		return nil, 0
 	}
@@ -204,33 +226,37 @@ func (cc *cmdCompleter) Do(line []rune, pos int) ([][]rune, int) {
 	cc.tab = 0
 	cc.lastPrefix = prefix
 	cc.lenPrefixInRune = len([]rune(prefix))
-	cc.matches = []string{}
-	cc.filesFromDir = []string{}
+	cc.matches = []Match{}
+	// cc.matchesFromDir = []Match{}
 
 	if cc.searchCmd && !cc.loadedExt {
 		cc.scanExternals()
 	}
 
 	if !cc.searchCmd {
-		cc.SearchInCurrentDir()
+		cc.SearchMatchInCurrentDir()
+	} else {
+		cc.GetMatches()
 	}
 
-	cc.GetMatches()
-
-	if len(cc.matches) == 0 {
+	if len(cc.matches) == 0  {
 		fmt.Print("\x07")
 		return nil, 0 
 	}
-	
+
 	// print ending, no full
 	if len(cc.matches) == 1 {
-		ending := []rune(cc.matches[0][cc.lenPrefixInRune:])
-		ending = append(ending, ' ')
+		ending := []rune(cc.matches[0].matchStr[cc.lenPrefixInRune:])
+		sign := ' '
+		if cc.matches[0].isDir {
+			sign = '/'
+		}
+		ending = append(ending, sign)
 
 		return [][]rune{ending}, cc.lenPrefixInRune
 	}
 
-	sort.Strings(cc.matches)
+	cc.SortMatches()
 	commonPrefix := cc.LongestCommonPrefix()
 
 	// may print common prefix (ending again)
