@@ -158,8 +158,7 @@ func (cc *cmdCompleter) Do(line []rune, pos int) ([][]rune, int) {
 		prefix = sliceLine[len(sliceLine)-1]
 		cc.searchCmd = false
 	} else if len(sliceLine) == 1 {
-		prefix = ""
-		cc.searchCmd = false
+		prefix = sliceLine[0]
 	}
 
 	// lastSpace := strings.LastIndex(string(line[:pos]), " ")
@@ -207,7 +206,6 @@ func (cc *cmdCompleter) Do(line []rune, pos int) ([][]rune, int) {
 
 		return [][]rune{ending}, cc.lenPrefixInRune
 	}
-
 
 	sort.Strings(cc.matches)
 	commonPrefix := cc.LongestCommonPrefix()
