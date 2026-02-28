@@ -190,7 +190,11 @@ func (cc *cmdCompleter) MatchesJoin(sep string) string {
 
 	buf := strings.Builder{}
 	for _, match := range cc.matches {
-		buf.WriteString(match.matchStr + sep)
+		dir := ""
+		if match.isDir {
+			dir = "/"
+		}
+		buf.WriteString(match.matchStr + dir + sep)
 	}
 	return buf.String()
 }
