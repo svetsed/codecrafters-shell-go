@@ -1,7 +1,6 @@
 package completer
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -39,7 +38,7 @@ func NewCmdCompleter() *cmdCompleter {
 }
 
 // scanExternals searches for unique executable files from PATH and save in slice cc.externals.
-func (cc *cmdCompleter) scanExternals() {
+func (cc *cmdCompleter) ScanExternals() {
 	listDirs := path.GetListPath()
 	if listDirs == nil {
 		return
@@ -150,7 +149,7 @@ func (cc *cmdCompleter) SearchMatchInCurrentDir() {
 	}
 }
 
-func (cc *cmdCompleter) findPrefix(lineStr string) string {
+func (cc *cmdCompleter) FindPrefix(lineStr string) string {
 	// cmd1 a b | cmd2 a b | ...
 	strForSearchSpace := lineStr
 	if strings.Contains(lineStr, "|") {
@@ -200,73 +199,4 @@ func (cc *cmdCompleter) SortMatches() {
 	sort.Slice(cc.matches, func(i, j int) bool {
 		return cc.matches[i].matchStr < cc.matches[j].matchStr
 	})
-}
-
-// Do implement AutoCompleter readline then user press TAB.
-func (cc *cmdCompleter) Do(line []rune, pos int) ([][]rune, int) {
-	lineStr := string(line[:pos])
-
-	// search prefix
-	prefix := cc.findPrefix(lineStr)
-
-	// too many option
-	if prefix == "" && cc.searchCmd {
-		fmt.Print("\x07")
-		return nil, 0
-	}
-
-	if cc.lastPrefix == prefix && cc.tab == 1 {
-		fmt.Printf("\n%s\n", cc.MatchesJoin("  "))
-		fmt.Print("$ " + lineStr)
-		return nil, 0
-	}
-
-	// refresh data for new prefix
-	cc.tab = 0
-	cc.lastPrefix = prefix
-	cc.lenPrefixInRune = len([]rune(prefix))
-	cc.matches = []Match{}
-
-	if cc.searchCmd && !cc.loadedExt {
-		cc.scanExternals()
-	}
-
-	if !cc.searchCmd {
-		cc.SearchMatchInCurrentDir()
-	} else {
-		cc.GetMatches() // search in externals and builtin
-	}
-
-	if len(cc.matches) == 0  {
-		fmt.Print("\x07")
-		return nil, 0 
-	}
-
-	// print ending, no full
-	if len(cc.matches) == 1 {
-		ending := []rune(cc.matches[0].matchStr[cc.lenPrefixInRune:])
-		sign := ' '
-		if cc.matches[0].isDir {
-			sign = '/'
-		}
-		ending = append(ending, sign)
-
-		return [][]rune{ending}, cc.lenPrefixInRune
-	}
-
-	cc.SortMatches()
-	commonPrefix := cc.LongestCommonPrefix()
-
-	// may print common prefix (ending again)
-	if len(commonPrefix) > cc.lenPrefixInRune {
-		ending := commonPrefix[cc.lenPrefixInRune:]
-		return [][]rune{ending}, cc.lenPrefixInRune
-	} else {
-		// print matches to the next tab
-		if cc.tab == 0 {
-			fmt.Print("\x07")
-			cc.tab = 1
-		}
-	}
-	return nil, 0
 }
