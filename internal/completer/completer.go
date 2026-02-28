@@ -37,7 +37,7 @@ func NewCmdCompleter() *cmdCompleter {
 	return cc
 }
 
-// scanExternals searches for unique executable files from PATH and save in slice cc.externals.
+// ScanExternals searches for unique executable files from PATH and save in slice cc.externals.
 func (cc *cmdCompleter) ScanExternals() {
 	listDirs := path.GetListPath()
 	if listDirs == nil {
@@ -162,6 +162,7 @@ func (cc *cmdCompleter) FindPrefix(lineStr string) string {
 	var prefix string
 	cc.searchCmd = true
 
+	// cmd2 a b
 	sliceLine := strings.Split(strForSearchSpace, " ")
 	if len(sliceLine) == 0 { // no space -> getting line[:pos]
 		prefix = lineStr
@@ -172,6 +173,7 @@ func (cc *cmdCompleter) FindPrefix(lineStr string) string {
 		prefix = sliceLine[0]
 	}
 
+	// a/b/c -> a/b/ - search dir; c - prefix
 	if strings.Contains(prefix, string(os.PathSeparator)) {
 		lastSep := strings.LastIndex(prefix, string(os.PathSeparator))
 		if lastSep != -1 {
