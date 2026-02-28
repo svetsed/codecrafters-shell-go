@@ -18,6 +18,7 @@ type cmdCompleter struct {
 	builtins  		[]string
 	externals   	[]string  // executable files founds in PATHs
 	filesFromDir    []string  // all files founds in current dir
+	searchingDir    string	  // not "" when the user includes a path
 	loadedExt		bool	  // flag for load externals just one in the session
 	searchCmd		bool	  // flag to determine where exactly we will look
 }
@@ -129,11 +130,16 @@ func (cc *cmdCompleter) LongestCommonPrefix() []rune {
 	return firstStr
 }
 
-func (cc *cmdCompleter) SearchInCurrentDir(prefix string) {
+func (cc *cmdCompleter) SearchInCurrentDir() {
 	curDir, err := os.Getwd()
 	if err != nil {
 		return
 	}
+
+	if cc.searchingDir != "" {
+		curDir = filepath.Join(curDir, cc.searchingDir)
+	}
+
 	dirEntry, err := os.ReadDir(curDir)
 	if err != nil {
 		return
@@ -143,7 +149,7 @@ func (cc *cmdCompleter) SearchInCurrentDir(prefix string) {
 		if d.IsDir() {
 			continue
 		}
-		// if prefix != "" && strings.Contains(d.Name(), prefix) {}
+		// if prefix != "" && strings.Contains(d.Name(), cc.lastPrefix) {}
 		cc.filesFromDir = append(cc.filesFromDir, d.Name())
 	}
 }
@@ -174,12 +180,13 @@ func (cc *cmdCompleter) Do(line []rune, pos int) ([][]rune, int) {
 		prefix = sliceLine[0]
 	}
 
-	// lastSpace := strings.LastIndex(string(line[:pos]), " ")
-	// if lastSpace == -1 { 
-	// 	prefix = lineStr
-	// } else {
-	// 	prefix = string(line[lastSpace+1:pos])
-	// }
+	if strings.Contains(prefix, string(os.PathSeparator)) {
+		lastSep := strings.LastIndex(prefix, string(os.PathSeparator))
+		if lastSep != -1 {
+			cc.searchingDir = prefix[:lastSep]
+			prefix = prefix[lastSep+1:]
+		}
+	}
 
 	// too many option
 	if prefix == "" && cc.searchCmd {
@@ -205,7 +212,7 @@ func (cc *cmdCompleter) Do(line []rune, pos int) ([][]rune, int) {
 	}
 
 	if !cc.searchCmd {
-		cc.SearchInCurrentDir(prefix)
+		cc.SearchInCurrentDir()
 	}
 
 	cc.GetMatches()
