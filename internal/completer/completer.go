@@ -17,7 +17,6 @@ type cmdCompleter struct {
 	tab 			int	 	  // count tab
 	builtins  		[]string
 	externals   	[]string  // executable files founds in PATHs
-	// matchesFromDir  []Match  // all files founds in current dir
 	searchDir    	string	  // not "" when the user includes a path
 	loadedExt		bool	  // flag for load externals just one in the session
 	searchCmd		bool	  // flag to determine where exactly we will look
@@ -31,9 +30,9 @@ type Match struct {
 func NewCmdCompleter() *cmdCompleter {
 	cc := &cmdCompleter{
 		matches: []Match{},
+		tab: 0,
 		builtins: []string{"echo", "exit"},
 		externals: []string{},
-		// matchesFromDir: []Match{},
 	}
 
 	return cc
@@ -206,6 +205,7 @@ func (cc *cmdCompleter) SortMatches() {
 // Do implement AutoCompleter readline then user press TAB.
 func (cc *cmdCompleter) Do(line []rune, pos int) ([][]rune, int) {
 	lineStr := string(line[:pos])
+
 	// search prefix
 	prefix := cc.findPrefix(lineStr)
 
@@ -214,7 +214,6 @@ func (cc *cmdCompleter) Do(line []rune, pos int) ([][]rune, int) {
 		fmt.Print("\x07")
 		return nil, 0
 	}
-
 
 	if cc.lastPrefix == prefix && cc.tab == 1 {
 		fmt.Printf("\n%s\n", cc.MatchesJoin("  "))
@@ -227,7 +226,6 @@ func (cc *cmdCompleter) Do(line []rune, pos int) ([][]rune, int) {
 	cc.lastPrefix = prefix
 	cc.lenPrefixInRune = len([]rune(prefix))
 	cc.matches = []Match{}
-	// cc.matchesFromDir = []Match{}
 
 	if cc.searchCmd && !cc.loadedExt {
 		cc.scanExternals()
@@ -236,7 +234,7 @@ func (cc *cmdCompleter) Do(line []rune, pos int) ([][]rune, int) {
 	if !cc.searchCmd {
 		cc.SearchMatchInCurrentDir()
 	} else {
-		cc.GetMatches()
+		cc.GetMatches() // search in externals and builtin
 	}
 
 	if len(cc.matches) == 0  {
