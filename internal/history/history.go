@@ -39,6 +39,7 @@ func NewHistory() History {
 	return History{}
 }
 
+// PushFrontOneLine adds one element to the front of the list.
 func (h *History) PushFrontOneLine(line string, isNewRecord bool) {
 	if line == "" {
 		return
@@ -63,6 +64,7 @@ func (h *History) PushFrontOneLine(line string, isNewRecord bool) {
 	h.CountNewRecords++
 }
 
+// PushFront may add few elements to the front of the list.
 func (h *History) PushFront(lines string, isNewRecord bool) int {
 	if lines == "" {
 		return 0
@@ -79,6 +81,7 @@ func (h *History) PushFront(lines string, isNewRecord bool) int {
 	return counter
 }
 
+// PushBackOneLine adds one element to the end of the list.
 func (h *History) PushBackOneLine(line string, isNewRecord bool) {
 	if line == "" {
 		return
@@ -105,6 +108,7 @@ func (h *History) PushBackOneLine(line string, isNewRecord bool) {
 	h.Walk.Current = nil
 }
 
+// PushBack may adds few elements to the end of the list. 
 func (h *History) PushBack(lines string, isNewRecord bool) int {
 	if lines == "" {
 		return 0
@@ -121,6 +125,8 @@ func (h *History) PushBack(lines string, isNewRecord bool) int {
 	return counter
 }
 
+// Front returns first element and true in the list.
+// If it doesn't exist, returns empty line and false.
 func (h *History) Front() (string, bool) {
 	h.Mu.RLock()
 	defer h.Mu.RUnlock()
@@ -131,6 +137,8 @@ func (h *History) Front() (string, bool) {
 	return h.Head.Line, true
 }
 
+// Back returns last element and true in the list.
+// If it doesn't exist, returns empty line and false.
 func (h *History) Back() (string, bool) {
 	h.Mu.RLock()
 	defer h.Mu.RUnlock()
@@ -167,6 +175,9 @@ func (h *History) ReadFromHead() []string {
 	return sliceLines
 }
 
+// FindAndReadNewRecords returns a slice with new records.
+// Returns nil if there were no records at all.
+// Returns empty slice, if no new records.
 func (h *History) FindAndReadNewRecords() []string {
 	h.Mu.Lock()
 	defer h.Mu.Unlock()
@@ -276,6 +287,8 @@ func (h *History) ReadFromTailLastN(n int) ([]string, error) {
 	return sliceLines, nil
 }
 
+// ReadFromTailWithFormat is old function.
+// Returns a string already formatted in descending order. 
 func (h *History) ReadFromTailWithFormat() string {
 	h.Mu.RLock()
 	defer h.Mu.RUnlock()
@@ -300,6 +313,8 @@ func (h *History) ReadFromTailWithFormat() string {
 	return strings.TrimRight(buf.String(), "\n\r\t")
 }
 
+// WalkByHistory is a listener implementation for readline.
+// Checks whether the up or down arrow was pressed and calls func if so.
 func (h *History) WalkByHistory(line []rune, pos int, key rune) (newLine []rune, newPos int, ok bool) {
 	// fmt.Printf("key: %q, inESC: %v, buf: %q\n", key, h.Walk.InESC, string(h.Walk.Buf))
 	switch key {

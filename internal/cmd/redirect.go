@@ -14,6 +14,7 @@ var availRedType = map[string]bool{
 	"2>>": true,
 }
 
+// CorrectRedirectType checks the correctness of the specified redirect type.
 func (cc *CurrentCmd) CorrectRedirectType() bool {
 	if _, exist := availRedType[cc.RedirectType]; exist {
 		return true
@@ -22,6 +23,7 @@ func (cc *CurrentCmd) CorrectRedirectType() bool {
 	return false
 }
 
+// SetupRedirection configures where output should be redirected if a redirect was specified.
 func (cc *CurrentCmd) SetupRedirection() error {
 	if len(cc.Files) == 0 && cc.RedirectType == ""  {
 		return nil
@@ -35,6 +37,7 @@ func (cc *CurrentCmd) SetupRedirection() error {
 	for _, filename := range cc.Files {
 		f, err := os.OpenFile(filename, cc.Flag, 0766)
 		if err != nil {
+			// close that already open
 			for _, opened := range files {
 				opened.Close()
 			}
@@ -43,6 +46,8 @@ func (cc *CurrentCmd) SetupRedirection() error {
 		files = append(files, f)
 	}
 
+	// if several files were specified, then all are opened,
+	// but the last one is written
 	lastFile := files[len(files)-1]
 
 	switch cc.RedirectType {

@@ -25,6 +25,7 @@ func (c *Cmds) CreatePipeline() (readers []*os.File, writers []*os.File, err err
 	for i:= 0; i < c.CountCmd - 1; i++ {
 		r, w, err := os.Pipe()
 		if err != nil {
+			// close that already open
 			if i > 0 {
 				for j := i - 1; j >= 0; j-- {
 					if readers[j] != nil {
@@ -57,16 +58,19 @@ func(c *Cmds) SetupCmdPipe(i int, readers, writers []*os.File, devNull *os.File)
 	}
 
 	if curCmd.RedirectType == ">" || curCmd.RedirectType == ">>" || curCmd.RedirectType == "1>" || curCmd.RedirectType == "1>>" {
+		// if redirect, writers don't need.
 		writers[i].Close()
 	} else if i < c.CountCmd - 1 {
 		nextCmd := c.Cmds[i+1]
 		if cmd.CheckIfBuiltinCmd(nextCmd.Cmd) {
+			// builtins cmd don't read -> write in dev/null
 			curCmd.Stdout = devNull
 			writers[i].Close()
 		} else {
 			curCmd.Stdout = writers[i]
 		}
 	} else {
+		// last cmd writes in stdout
 		curCmd.Stdout = os.Stdout
 	}
 }
@@ -143,6 +147,7 @@ func (c *Cmds) ExecPipeline() {
 		close(errCh)
 	}()
 
+	// ignore ExitError (exit status ...)
 	for err := range errCh {
 		var exitErr *exec.ExitError
 		if !errors.As(err.err, &exitErr) {

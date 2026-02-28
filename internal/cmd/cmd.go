@@ -8,11 +8,15 @@ import (
 type CurrentCmd struct {
 	Cmd			 string
 	Args  		 []string
-	Files 		 []string   // save just filename
-	RedirectType string
     Stdin  		 io.Reader
     Stdout 		 io.Writer
     Stderr 		 io.Writer
-	Flag		 int		// for openning file
+	Redirect
+}
+
+type Redirect struct {
+	Files 		 []string   // save just filename
+	RedirectType string		// > >> 1> 1>> 2> 2>>
+	Flag		 int		// for openning file, example os.O_CREATE | os.O.RD_WR
 	filesToClose []*os.File
 }

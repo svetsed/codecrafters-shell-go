@@ -19,6 +19,7 @@ import (
 func main() {
 	history := history.NewHistory()
 
+	// load old history
 	historyFilename := os.Getenv("HISTFILE")
 	if historyFilename != "" {
 		err := history.ReadHistoryFromFile(historyFilename)
