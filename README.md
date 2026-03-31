@@ -1,34 +1,41 @@
 [![progress-banner](https://backend.codecrafters.io/progress/shell/a0ce141b-bdea-4feb-a164-d00a0ece7416)](https://app.codecrafters.io/users/codecrafters-bot?r=2qF)
 
+# Build Your Own Shell in Go 
+
+[![Go Version](https://img.shields.io/badge/Go-1.25-blue.svg)](https://golang.org/)
+[![CodeCrafters](https://img.shields.io/badge/CodeCrafters-Shell%20Challenge-ff69b4.svg)](https://codecrafters.io/)
+
+A POSIX-compliant shell implementation built from scratch in Go as part of the CodeCrafters "Build Your Own Shell" challenge. This project demonstrates core systems programming concepts including command parsing, process execution, and shell built-in commands.
+
+## Features
+
+- **Interactive REPL** – Read-Eval-Print Loop using `readline` library
+- **Built-in Commands** – `cd`, `pwd`, `echo`, `exit`, `type` and more
+- **External Program Execution** – Runs any program available in PATH
+- **Command Parsing** – Handles single and double quotes, escape sequences, and spaces
+- **Path Resolution** – Searches PATH for executables
+- **Redirection** – Support for redirecting a command's output to a file (> or 1>, >>, 2>, 2>>)
+- **Command and Argument Completion on TAB** - Supports with LCP logic and sound
+- **Pipelines** – Support for more than 2 commands in pipeline (connecting the output of each command to the input of the next one)
+- **Custom History Support** – My own implementation using linked list
+
+Background Jobs soon!
+
+
+### Installation and running
+
+```bash
+git clone https://github.com/svetsed/codecrafters-shell-go.git
+cd codecrafters-shell-go
+go build -o goshell ./app
+./goshell
+```
+
+### If you want to try too
+
 This is a starting point for Go solutions to the
 ["Build Your Own Shell" Challenge](https://app.codecrafters.io/courses/shell/overview).
 
-In this challenge, you'll build your own POSIX compliant shell that's capable of
-interpreting shell commands, running external programs and builtin commands like
-cd, pwd, echo and more. Along the way, you'll learn about shell command parsing,
-REPLs, builtin commands, and more.
+### Note
 
-**Note**: If you're viewing this repo on GitHub, head over to
-[codecrafters.io](https://codecrafters.io) to try the challenge.
-
-# Passing the first stage
-
-The entry point for your `shell` implementation is in `app/main.go`. Study and
-uncomment the relevant code, and push your changes to pass the first stage:
-
-```sh
-git commit -am "pass 1st stage" # any msg
-git push origin master
-```
-
-Time to move on to the next stage!
-
-# Stage 2 & beyond
-
-Note: This section is for stages 2 and beyond.
-
-1. Ensure you have `go (1.25)` installed locally
-1. Run `./your_program.sh` to run your program, which is implemented in
-   `app/main.go`.
-1. Commit your changes and run `git push origin master` to submit your solution
-   to CodeCrafters. Test output will be streamed to your terminal.
+I push to this repository automatically using the codecrafters utility, but unfortunately, i can't do more meaningful commits there.
