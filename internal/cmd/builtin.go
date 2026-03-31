@@ -17,6 +17,7 @@ var builtinCmd = map[string]bool{
 	"pwd":     true,
 	"cd": 	   true,
 	"history": true,
+	"jobs":	   true,
 }
 
 func (cc *CurrentCmd) ExecBuiltinCmd() (errOutput error) {
@@ -64,6 +65,7 @@ func (cc *CurrentCmd) ExecBuiltinCmd() (errOutput error) {
 			return fmt.Errorf("%v", err)
 		}
 		output = tmp
+	case "jobs":
 	}
 
 	if output != "" {
